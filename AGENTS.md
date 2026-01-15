@@ -2,6 +2,9 @@
 
 Este archivo contiene convenciones y preferencias para los agentes de IA que trabajen en este repositorio. Solo realizar lo que se indica no hacer mas halla de lo solicitado.
 
+Se utiliza biome para el formateo y linting del codigo.
+Se utiliza bun para el empaquetado y ejecucion del codigo.
+
 ## Estructura de Commit
 
 Cuando se solicite un commit, se debe seguir estrictamente la siguiente estructura y realizarlo en español:
