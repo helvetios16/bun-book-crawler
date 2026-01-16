@@ -3,12 +3,16 @@
 	"module": "index.ts",
 	"type": "module",
 	"private": true,
-	"scripts": {
-		"dev": "bun run index.ts",
-		"format": "biome format --write --verbose",
-		"lint": "biome lint --write --verbose",
-		"check": "biome check --write --unsafe --verbose"
-	},
+  "scripts": {
+    "start": "bun run index.ts",
+    "cache:clear": "bun run scripts/clear-cache.ts",
+    "lint": "biome lint .",
+    "lint:fix": "biome lint --write .",
+    "format": "biome format .",
+    "format:fix": "biome format --write .",
+    "check": "biome check .",
+    "check:fix": "biome check --write ."
+  },
 	"devDependencies": {
 		"@biomejs/biome": "^2.3.11",
 		"@types/bun": "latest"

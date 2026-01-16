@@ -24,11 +24,11 @@ export class CacheManager {
 		return await file.exists();
 	}
 
-	public async get(url: string): Promise<string | undefined> {
+	public async get(url: string, extension: string = ".html"): Promise<string | undefined> {
 		if (!isValidUrl(url)) {
 			throw new Error(`Invalid URL provided to cache: ${url}`);
 		}
-		const filename = `${this.cacheDir}/${hashUrl(url)}.html`;
+		const filename = `${this.cacheDir}/${hashUrl(url)}${extension}`;
 		const file = Bun.file(filename);
 
 		if (await file.exists()) {
@@ -38,11 +38,11 @@ export class CacheManager {
 		return undefined;
 	}
 
-	public async save(url: string, content: string, force: boolean = false): Promise<string> {
+	public async save(url: string, content: string, force: boolean = false, extension: string = ".html"): Promise<string> {
 		if (!isValidUrl(url)) {
 			throw new Error(`Invalid URL provided to cache: ${url}`);
 		}
-		const filename = `${this.cacheDir}/${hashUrl(url)}.html`;
+		const filename = `${this.cacheDir}/${hashUrl(url)}${extension}`;
 		const file = Bun.file(filename);
 
 		if (!force && (await file.exists())) {

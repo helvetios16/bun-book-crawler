@@ -6,7 +6,6 @@
 import type { Page } from "puppeteer";
 import { BrowserClient } from "./src/core/browser-client";
 import { GoodreadsService } from "./src/services/goodreads-service";
-import type { Book } from "./src/types";
 import { isValidBookId } from "./src/utils/util";
 
 async function main(): Promise<void> {
@@ -25,9 +24,7 @@ async function main(): Promise<void> {
 
 		const goodreadsService = new GoodreadsService(page);
 
-		const result: Book = await goodreadsService.lookBook(bookId);
-
-		console.log(result);
+		await goodreadsService.lookBook(bookId);
 	} catch (error) {
 		console.error("❌ Ocurrió un error durante el proceso de scraping:", error);
 	} finally {
