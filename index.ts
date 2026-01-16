@@ -9,28 +9,28 @@ import { GoodreadsService } from "./src/services/goodreads-service";
 import { isValidBookId } from "./src/utils/util";
 
 async function main(): Promise<void> {
-	const browserClient = new BrowserClient();
-	let page: Page;
+  const browserClient = new BrowserClient();
+  let page: Page;
 
-	try {
-		const bookId = "41886271-the-sword-of-kaigen";
+  try {
+    const bookId = "41886271-the-sword-of-kaigen";
 
-		if (!isValidBookId(bookId)) {
-			console.error(`❌ El ID del libro no es válido: ${bookId}`);
-			return;
-		}
+    if (!isValidBookId(bookId)) {
+      console.error(`❌ El ID del libro no es válido: ${bookId}`);
+      return;
+    }
 
-		page = await browserClient.launch();
+    page = await browserClient.launch();
 
-		const goodreadsService = new GoodreadsService(page);
+    const goodreadsService = new GoodreadsService(page);
 
-		await goodreadsService.lookBook(bookId);
-	} catch (error) {
-		console.error("❌ Ocurrió un error durante el proceso de scraping:", error);
-	} finally {
-		await browserClient.close();
-		console.log("✨ Proceso completado.");
-	}
+    await goodreadsService.lookBook(bookId);
+  } catch (error) {
+    console.error("❌ Ocurrió un error durante el proceso de scraping:", error);
+  } finally {
+    await browserClient.close();
+    console.log("✨ Proceso completado.");
+  }
 }
 
 main().catch(console.error);

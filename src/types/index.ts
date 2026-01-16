@@ -5,10 +5,10 @@
  * Can be extended to include more structured data, e.g., a Book interface.
  */
 export interface ScrapeResult {
-	title: string;
-	contentLength: number;
-	// Future extension:
-	// books: Book[];
+  title: string;
+  contentLength: number;
+  // Future extension:
+  // books: Book[];
 }
 
 /**
@@ -16,7 +16,7 @@ export interface ScrapeResult {
  * Example for future, more detailed scraping.
  */
 export interface Book {
-	title: string;
-	author: string;
-	language: string;
+  title: string;
+  author: string;
+  language: string;
 }
