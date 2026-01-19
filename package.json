@@ -7,7 +7,7 @@
     "start": "bun run index.ts",
     "cache:clear": "bun run scripts/clear-cache.ts",
     "lint": "biome lint .",
-    "lint:fix": "biome lint --write .",
+    "lint:fix": "biome lint --unsafe --write .",
     "format": "biome format .",
     "format:fix": "biome format --write .",
     "check": "biome check .",

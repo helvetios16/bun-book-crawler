@@ -13,7 +13,7 @@ async function main(): Promise<void> {
   let page: Page;
 
   try {
-    const bookId = "41886271-the-sword-of-kaigen";
+    const bookId = "123224254-mistborn"; // 41886271-the-sword-of-kaigen
 
     if (!isValidBookId(bookId)) {
       console.error(`❌ El ID del libro no es válido: ${bookId}`);
@@ -24,7 +24,14 @@ async function main(): Promise<void> {
 
     const goodreadsService = new GoodreadsService(page);
 
-    await goodreadsService.lookBook(bookId);
+    const book = await goodreadsService.lookBook(bookId);
+
+    if (book) {
+      console.log("📚 Libro encontrado:");
+      console.log(book);
+    } else {
+      console.log("! No se pudo extraer la información del libro.");
+    }
   } catch (error) {
     console.error("❌ Ocurrió un error durante el proceso de scraping:", error);
   } finally {

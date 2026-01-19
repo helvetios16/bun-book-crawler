@@ -6,7 +6,9 @@
 import type { Page } from "puppeteer";
 import { BOOK_URL, GOODREADS_URL } from "../config/constants";
 import { CacheManager } from "../core/cache-manager";
+import type { Book } from "../types";
 import { isValidBookId } from "../utils/util";
+import { parseBookData } from "./goodreads-parser";
 
 export class GoodreadsService {
   private readonly page: Page;
@@ -16,7 +18,7 @@ export class GoodreadsService {
     this.page = page;
   }
 
-  public async lookBook(id: string): Promise<void> {
+  public async lookBook(id: string): Promise<Book | null> {
     if (!isValidBookId(id)) {
       throw new Error(`Invalid Book ID format: ${id}`);
     }
@@ -30,18 +32,28 @@ export class GoodreadsService {
     await this.page.waitForSelector("body");
     console.log("✅ Página cargada.");
 
+    let bookData: Book | null = null;
+
     const nextData = await this.page.$eval("#__NEXT_DATA__", (el) => el.textContent);
     if (nextData) {
-      const formattedJson = JSON.stringify(JSON.parse(nextData), null, 2);
+      const parsedJson = JSON.parse(nextData);
+      const formattedJson = JSON.stringify(parsedJson, null, 2);
+
+      // Cache the raw JSON
       await this.cache.save({
         url,
         content: formattedJson,
         force: false,
         extension: ".json",
       });
+
+      // Parse the book data
+      bookData = parseBookData(parsedJson);
     }
 
     const content = await this.page.content();
     await this.cache.save({ url, content, force: false, extension: ".html" });
+
+    return bookData;
   }
 }
