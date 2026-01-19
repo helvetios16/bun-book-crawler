@@ -41,3 +41,4 @@ export const USER_AGENT_METADATA = {
  * Target URL for scraping.
  */
 export const GOODREADS_URL = "https://www.goodreads.com";
+export const BOOK_URL = "/book/show/";

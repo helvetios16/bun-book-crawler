@@ -1,11 +1,38 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { Glob } from "bun";
 
 const CACHE_DIR = join(process.cwd(), "cache");
-const FILENAME = "ee9feb0f54dd1c77f69270851f960690.json"; // Cambia esto para probar otro archivo
 
-const cachePath = join(CACHE_DIR, FILENAME);
-console.log(`📂 Reading: ${FILENAME}`);
+// Find the most recent JSON file in the cache
+const findLatestBookJson = async () => {
+  // Search in new structure (books folder) and fallback to root
+  const glob = new Glob("**/*.json");
+  const files: string[] = [];
+
+  for await (const file of glob.scan({ cwd: CACHE_DIR })) {
+    // Prefer files in 'books' directory or root, ignore others if specific logic needed later
+    files.push(join(CACHE_DIR, file));
+  }
+
+  if (files.length === 0) {
+    return null;
+  }
+
+  // Sort by modification time, newest first
+  return files.sort((a, b) => {
+    return statSync(b).mtime.getTime() - statSync(a).mtime.getTime();
+  })[0];
+};
+
+const cachePath = await findLatestBookJson();
+
+if (!cachePath) {
+  console.error("❌ No JSON files found in cache.");
+  process.exit(1);
+}
+
+console.log(`📂 Reading: ${cachePath}`);
 
 const rawData = readFileSync(cachePath, "utf-8");
 const json = JSON.parse(rawData);

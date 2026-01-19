@@ -15,20 +15,14 @@ export class CacheManager {
   }
 
   public async has(url: string): Promise<boolean> {
-    if (!isValidUrl(url)) {
-      throw new Error(`Invalid URL provided to cache: ${url}`);
-    }
-    const filename = `${this.cacheDir}/${hashUrl(url)}.html`;
+    const filename = this.getCacheFilePath(url);
     const file = Bun.file(filename);
 
     return await file.exists();
   }
 
   public async get(url: string, extension: string = ".html"): Promise<string | undefined> {
-    if (!isValidUrl(url)) {
-      throw new Error(`Invalid URL provided to cache: ${url}`);
-    }
-    const filename = `${this.cacheDir}/${hashUrl(url)}${extension}`;
+    const filename = this.getCacheFilePath(url, extension);
     const file = Bun.file(filename);
 
     if (await file.exists()) {
@@ -44,21 +38,50 @@ export class CacheManager {
     force: boolean = false,
     extension: string = ".html",
   ): Promise<string> {
-    if (!isValidUrl(url)) {
-      throw new Error(`Invalid URL provided to cache: ${url}`);
-    }
-    const filename = `${this.cacheDir}/${hashUrl(url)}${extension}`;
+    const filename = this.getCacheFilePath(url, extension);
     const file = Bun.file(filename);
 
     if (!force && (await file.exists())) {
-      console.log(`✓ Cache hit: ${url}`);
+      console.log(`✓ Cache hit: ${url}${extension}`);
       return filename;
     }
 
-    console.log(`↓ Cache: ${url}`);
+    console.log(`↓ Cache: ${url}${extension}`);
 
     await Bun.write(file, content);
 
     return filename;
+  }
+
+  private getDayDir(): string {
+    const date = new Date().toISOString().split("T")[0];
+    return `${this.cacheDir}/${date}`;
+  }
+
+  private getContentType(url: string): string {
+    const lowerUrl = url.toLowerCase();
+    if (lowerUrl.includes("/book/")) {
+      return "books";
+    }
+    if (lowerUrl.includes("/author/")) {
+      return "authors";
+    }
+    if (lowerUrl.includes("/blog/")) {
+      return "blog";
+    }
+    return "misc";
+  }
+
+  private getCacheFilePath(url: string, extension: string = ".html"): string {
+    if (!isValidUrl(url)) {
+      throw new Error(`Invalid URL provided to cache: ${url}`);
+    }
+
+    const type = this.getContentType(url);
+    const dir = `${this.getDayDir()}/${type}`;
+
+    mkdirSync(dir, { recursive: true });
+
+    return `${dir}/${hashUrl(url)}${extension}`;
   }
 }

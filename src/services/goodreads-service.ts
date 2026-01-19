@@ -4,7 +4,7 @@
  */
 
 import type { Page } from "puppeteer";
-import { GOODREADS_URL } from "../config/constants";
+import { BOOK_URL, GOODREADS_URL } from "../config/constants";
 import { CacheManager } from "../core/cache-manager";
 import { isValidBookId } from "../utils/util";
 
@@ -21,7 +21,7 @@ export class GoodreadsService {
       throw new Error(`Invalid Book ID format: ${id}`);
     }
 
-    const url = `${GOODREADS_URL}/book/show/${id}`;
+    const url = `${GOODREADS_URL}${BOOK_URL}${id}`;
     console.log(` Buscando libro ${id}...`);
 
     console.log(` Navegando a Goodreads: ${url}`);
