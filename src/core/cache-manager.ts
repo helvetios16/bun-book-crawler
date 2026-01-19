@@ -6,6 +6,13 @@
 import { mkdirSync } from "node:fs";
 import { hashUrl, isValidUrl } from "../utils/util";
 
+export interface CacheSaveOptions {
+  url: string;
+  content: string;
+  force?: boolean;
+  extension?: string;
+}
+
 export class CacheManager {
   readonly cacheDir: string;
 
@@ -32,12 +39,12 @@ export class CacheManager {
     return undefined;
   }
 
-  public async save(
-    url: string,
-    content: string,
-    force: boolean = false,
-    extension: string = ".html",
-  ): Promise<string> {
+  public async save({
+    url,
+    content,
+    force = false,
+    extension = ".html",
+  }: CacheSaveOptions): Promise<string> {
     const filename = this.getCacheFilePath(url, extension);
     const file = Bun.file(filename);
 

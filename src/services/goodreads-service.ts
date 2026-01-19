@@ -33,10 +33,15 @@ export class GoodreadsService {
     const nextData = await this.page.$eval("#__NEXT_DATA__", (el) => el.textContent);
     if (nextData) {
       const formattedJson = JSON.stringify(JSON.parse(nextData), null, 2);
-      await this.cache.save(url, formattedJson, false, ".json");
+      await this.cache.save({
+        url,
+        content: formattedJson,
+        force: false,
+        extension: ".json",
+      });
     }
 
     const content = await this.page.content();
-    await this.cache.save(url, content, false, ".html");
+    await this.cache.save({ url, content, force: false, extension: ".html" });
   }
 }
