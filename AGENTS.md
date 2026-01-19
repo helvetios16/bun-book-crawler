@@ -18,28 +18,28 @@ Cuando se solicite un commit, se debe seguir estrictamente la siguiente estructu
     - <Detalle del cambio ...>
 ```
 
-# Code Review Rules
+# Reglas de Revisión de Código
 
 ## TypeScript
 
-- No `any` types - use proper typing
-- Avoid `unknown` unless validated with type guards
-- Do not use `@ts-ignore`
-- Use `@ts-expect-error` only with explanatory comment
-- Enable `strict: true` in `tsconfig.json`
+- **No usar tipos `any`**: utilizar un tipado adecuado.
+- **Evitar `unknown`**: a menos que se valide con guardas de tipo (*type guards*).
+- **No usar `@ts-ignore`**.
+- **Usar `@ts-expect-error`**: solo acompañado de un comentario explicativo.
+- **Habilitar `strict: true`**: en el archivo `tsconfig.json`.
 
-- Use `const` over `let` when possible
-- Explicitly type function parameters
-- Explicitly type function return values for public APIs
-- Rely on type inference for internal functions when clear
+- **Usar `const` sobre `let`**: siempre que sea posible.
+- **Tipar explícitamente los parámetros de función**.
+- **Tipar explícitamente los valores de retorno**: para APIs públicas.
+- **Confiar en la inferencia de tipos**: para funciones internas cuando el tipo sea claro.
 
-- Prefer interfaces over type aliases for object shapes
-- Use type aliases for unions and utility types
-- Centralize shared types to avoid duplication
+- **Preferir interfaces sobre *type aliases***: para definir la forma de los objetos.
+- **Usar *type aliases***: para uniones y tipos de utilidad.
+- **Centralizar tipos compartidos**: para evitar la duplicación.
 
-- Use object parameters for functions with 4+ parameters
-- Avoid optional chaining on critical business logic without validation
+- **Usar parámetros de objeto**: para funciones con 4 o más parámetros.
+- **Evitar el encadenamiento opcional (*optional chaining*)**: en lógica de negocio crítica sin validación previa.
 
-- Prefer `as const` for enums-like patterns
-- Use `Record<K, V>` instead of index signatures
-- Mark immutable data with `readonly`
+- **Preferir `as const`**: para patrones similares a enumeraciones (*enums*).
+- **Usar `Record<K, V>`**: en lugar de firmas de índice (*index signatures*).
+- **Marcar datos inmutables con `readonly`**.
