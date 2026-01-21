@@ -25,6 +25,7 @@ export interface ApolloNode {
   };
   imageUrl?: string;
   name?: string;
+  webUrl?: string;
   // Allow other properties since the graph is extensive
   [key: string]: unknown;
 }

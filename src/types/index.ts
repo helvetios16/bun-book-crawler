@@ -22,4 +22,5 @@ export interface Book {
   language?: string;
   format?: string;
   coverImage?: string;
+  webUrl?: string;
 }

@@ -68,6 +68,7 @@ const workData = resolve(workRef);
 const book = {
   id: data.legacyId,
   legacyId: workData?.legacyId,
+  webUrl: data?.webUrl,
   title: data.title,
   titleComplete: data.titleComplete,
   author: authorData?.name,

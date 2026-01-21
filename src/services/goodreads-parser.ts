@@ -97,5 +97,6 @@ export function parseBookData(jsonData: unknown): Book | null {
     language: data.details?.language?.name,
     format: data.details?.format,
     coverImage: data.imageUrl,
+    webUrl: data.webUrl,
   };
 }
