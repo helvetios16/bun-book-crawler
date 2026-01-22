@@ -3,35 +3,35 @@
  * @description Main entry point for the Goodreads scraping application.
  */
 
-import type { Page } from "puppeteer";
 import { BrowserClient } from "./src/core/browser-client";
 import { GoodreadsService } from "./src/services/goodreads-service";
-import { isValidBookId } from "./src/utils/util";
 
 async function main(): Promise<void> {
   const browserClient = new BrowserClient();
-  let page: Page;
-
   try {
-    const bookId = "123224254-mistborn"; // 41886271-the-sword-of-kaigen
+    // const bookId = "123224254-mistborn";
+    const _blogId = "3038-winners-wild-cards-from-past-goodreads-choice-awards";
 
-    if (!isValidBookId(bookId)) {
-      console.error(`❌ El ID del libro no es válido: ${bookId}`);
-      return;
-    }
-
-    page = await browserClient.launch();
-
+    const page = await browserClient.launch();
     const goodreadsService = new GoodreadsService(page);
 
-    const book = await goodreadsService.lookBook(bookId);
+    // --- MODO LIBRO ---
+    // if (isValidBookId(bookId)) {
+    //   const book = await goodreadsService.lookBook(bookId);
+    //   if (book) {
+    //     console.log("📚 Libro encontrado:");
+    //     console.log(book);
+    //   } else {
+    //     console.log("! No se pudo extraer la información del libro.");
+    //   }
+    // }
 
-    if (book) {
-      console.log("📚 Libro encontrado:");
-      console.log(book);
-    } else {
-      console.log("! No se pudo extraer la información del libro.");
-    }
+    // --- MODO BLOG (Descomenta para usar) ---
+    console.log("\n--- Buscando Blog ---");
+    // Usamos el ID del blog detectado en caché o uno de prueba
+    const targetBlogId = "3038-winners-wild-cards-from-past-goodreads-choice-awards";
+    await goodreadsService.lookBlog(targetBlogId);
+    console.log("✅ Proceso de blog finalizado.");
   } catch (error) {
     console.error("❌ Ocurrió un error durante el proceso de scraping:", error);
   } finally {

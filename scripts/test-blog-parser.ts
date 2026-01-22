@@ -46,53 +46,61 @@ try {
     }
 
     // 1. Detectar Headers
-    if (node instanceof document.defaultView.Element && /^H[1-6]$/.test(node.tagName)) {
-      const headerText: string = node.textContent?.trim() || "";
-      if (headerText) {
-        state.currentSection = headerText;
+    if (node.nodeType === 1) {
+      const element = node as HTMLElement;
+      if (/^H[1-6]$/.test(element.tagName)) {
+        const headerText: string = element.textContent?.trim() || "";
+        if (headerText) {
+          state.currentSection = headerText;
+        }
       }
     }
 
     // 2. Detectar Links de Libros
-    if (node instanceof document.defaultView.Element && node.tagName === "A") {
-      const href: string | null = node.getAttribute("href");
+    if (node.nodeType === 1) {
+      const element = node as HTMLElement;
+      if (element.tagName === "A") {
+        const href: string | null = element.getAttribute("href");
 
-      if (href?.includes("/book/show/")) {
-        const match: RegExpMatchArray | null = href.match(/\/book\/show\/(\d+)/);
+        if (href?.includes("/book/show/")) {
+          const match: RegExpMatchArray | null = href.match(/\/book\/show\/(\d+)/);
 
-        if (match) {
-          const id: string = match[1];
-          const img: HTMLImageElement | null = node.querySelector("img");
-          const text: string = node.textContent?.trim() || "";
-          const imgAlt: string | null = img?.getAttribute("alt") || null;
+          if (match?.[1]) {
+            const id: string = match[1];
+            const img: HTMLImageElement | null = element.querySelector(
+              "img",
+            ) as HTMLImageElement | null;
+            const text: string = element.textContent?.trim() || "";
+            const imgAlt: string | null = img?.getAttribute("alt") || null;
 
-          const candidate: BookContext = {
-            id,
-            title: "",
-            url: href.startsWith("http") ? href : `https://www.goodreads.com${href}`,
-            section: state.currentSection,
-          };
+            const candidate: BookContext = {
+              id,
+              title: "",
+              url: href.startsWith("http") ? href : `https://www.goodreads.com${href}`,
+              section: state.currentSection,
+            };
 
-          if (img) {
-            candidate.coverImage = img.getAttribute("src") || undefined;
-            if (imgAlt) {
-              candidate.title = imgAlt;
+            if (img) {
+              candidate.coverImage = img.getAttribute("src") || undefined;
+              if (imgAlt) {
+                candidate.title = imgAlt;
+              }
+            } else if (text && text.length > 1 && !["Read more", "View details"].includes(text)) {
+              candidate.title = text.replace(/\s+/g, " ");
             }
-          } else if (text && text.length > 1 && !["Read more", "View details"].includes(text)) {
-            candidate.title = text.replace(/\s+/g, " ");
-          }
 
-          const lastBook: BookContext | undefined = booksWithContext[booksWithContext.length - 1];
+            const lastBook: BookContext | undefined = booksWithContext[booksWithContext.length - 1];
 
-          if (lastBook && lastBook.id === id && lastBook.section === state.currentSection) {
-            if (!lastBook.title && candidate.title) {
-              lastBook.title = candidate.title;
+            if (lastBook && lastBook.id === id && lastBook.section === state.currentSection) {
+              if (!lastBook.title && candidate.title) {
+                lastBook.title = candidate.title;
+              }
+              if (!lastBook.coverImage && candidate.coverImage) {
+                lastBook.coverImage = candidate.coverImage;
+              }
+            } else {
+              booksWithContext.push(candidate);
             }
-            if (!lastBook.coverImage && candidate.coverImage) {
-              lastBook.coverImage = candidate.coverImage;
-            }
-          } else {
-            booksWithContext.push(candidate);
           }
         }
       }
@@ -121,9 +129,9 @@ try {
 
   bySection.forEach((books: BookContext[], section: string) => {
     console.log(`\n📂 [${section}] - ${books.length} books`);
-    books
-      .slice(0, 3)
-      .forEach((b: BookContext) => console.log(`   - ${b.title || "No Title"} (${b.id})`));
+    books.slice(0, 3).forEach((b: BookContext) => {
+      console.log(`   - ${b.title || "No Title"} (${b.id})`);
+    });
     if (books.length > 3) {
       console.log(`   ... and ${books.length - 3} more.`);
     }

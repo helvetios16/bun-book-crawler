@@ -42,3 +42,4 @@ export const USER_AGENT_METADATA = {
  */
 export const GOODREADS_URL = "https://www.goodreads.com";
 export const BOOK_URL = "/book/show/";
+export const BLOG_URL = "/blog/show/";

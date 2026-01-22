@@ -13,14 +13,33 @@ export interface ScrapeResult {
  */
 export interface Book {
   id: string;
-  legacyId?: string;
+  legacyId?: number;
   title: string;
   titleComplete?: string;
-  author?: string;
   description?: string;
-  pages?: number;
+  author?: string;
+  webUrl?: string;
+  genres?: string[];
+  series?: string[];
+  averageRating?: number;
+  ratingCount?: number;
+  publicationDate?: string;
+  publisher?: string;
+  pageCount?: number;
   language?: string;
   format?: string;
   coverImage?: string;
+}
+
+export interface Blog {
+  id?: string;
   webUrl?: string;
+  title?: string;
+  description?: string;
+  imageUrl?: string;
+  content?: string;
+  author?: string;
+  createdAt?: string;
+  tags?: string[];
+  mentionedBooks?: (Book & { section?: string })[];
 }
