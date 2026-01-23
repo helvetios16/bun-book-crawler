@@ -4,12 +4,13 @@
  */
 
 import type { Page } from "puppeteer";
-import { BLOG_URL, BOOK_URL, GOODREADS_URL } from "../config/constants";
+import { BLOG_URL, BOOK_URL, GOODREADS_URL, WORK_URL } from "../config/constants";
 import { CacheManager } from "../core/cache-manager";
 import type { Book } from "../types";
 import { isValidBookId } from "../utils/util";
 import { parseBlogHtml } from "./blog-parser";
-import { parseBookData } from "./goodreads-parser";
+import { parseBookData } from "./book-parser";
+import { parseEditionsHtml } from "./editions-parser";
 
 export class GoodreadsService {
   private readonly page: Page;
@@ -38,7 +39,7 @@ export class GoodreadsService {
         }
         console.warn("! Datos en caché encontrados pero inválidos o incompletos.");
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.warn("! Error al leer/parsear caché, continuando con red:", error);
     }
 
@@ -99,7 +100,7 @@ export class GoodreadsService {
 
           // Parsear datos del libro
           bookData = parseBookData(parsedJson);
-        } catch (e) {
+        } catch (e: unknown) {
           console.warn("! Fallo al procesar datos de Next.js:", e);
         }
       }
@@ -114,6 +115,73 @@ export class GoodreadsService {
     return bookData;
   }
 
+  public async lookBookEditions(legacyId: string | number): Promise<void> {
+    const url = `${GOODREADS_URL}${WORK_URL}${legacyId}`;
+    console.log(`🔎 Buscando ediciones del libro (Work ID: ${legacyId})...`);
+
+    // 1. Intentar cargar desde caché (Parsed JSON)
+    try {
+      const cachedParsed = await this.cache.get(url, "-parsed.json");
+      if (cachedParsed) {
+        console.log("📦 Cache hit (Parsed JSON).");
+        return;
+      }
+    } catch (_error: unknown) {
+      // Ignorar error de caché
+    }
+
+    // 2. Navegación Web
+    console.log(`🌐 Navegando a Goodreads: ${url}`);
+
+    const response = await this.page.goto(url, { waitUntil: "domcontentloaded" });
+
+    if (!response) {
+      throw new Error("❌ No se recibió respuesta del navegador.");
+    }
+
+    const status = response.status();
+
+    if (status === 404) {
+      console.error("❌ Libro no encontrado (404).");
+      return;
+    }
+
+    if (status === 403 || status === 429) {
+      throw new Error(`⛔ Acceso denegado o límite de peticiones excedido (Status: ${status}).`);
+    }
+
+    const currentUrl = this.page.url();
+    if (currentUrl.includes("/user/sign_in") || currentUrl.includes("captcha")) {
+      throw new Error("⛔ Redirigido a página de Login o Captcha. Se requiere intervención.");
+    }
+
+    await this.page.waitForSelector("body");
+    console.log("✅ Página cargada correctamente.");
+
+    // 3. Obtener HTML y Guardar
+    const content = await this.page.content();
+    await this.cache.save({ url, content, force: false, extension: ".html" });
+
+    // 4. Parsear y Guardar JSON
+    console.log("⚙  Parseando filtros de ediciones...");
+    const editionsData = parseEditionsHtml(content);
+
+    if (editionsData) {
+      const jsonContent = JSON.stringify(editionsData, null, 2);
+      await this.cache.save({
+        url,
+        content: jsonContent,
+        force: true,
+        extension: "-parsed.json",
+      });
+      console.log(
+        `✅ Datos de ediciones parseados y guardados (${editionsData.language.length} idiomas encontrados).`,
+      );
+    } else {
+      console.warn("! No se pudo parsear la información de ediciones.");
+    }
+  }
+
   public async lookBlog(id: string): Promise<void> {
     const url = `${GOODREADS_URL}${BLOG_URL}${id}`;
     console.log(`🔎 Buscando blog ${id}...`);
@@ -126,7 +194,7 @@ export class GoodreadsService {
         console.log("📦 Cache hit (Parsed JSON).");
         return;
       }
-    } catch (_error) {
+    } catch (_error: unknown) {
       // Ignorar error de caché
     }
 
@@ -163,7 +231,7 @@ export class GoodreadsService {
     await this.cache.save({ url, content, force: false, extension: ".html" });
 
     // 4. Parsear y Guardar JSON estructurado
-    console.log("⚙️ Parseando contenido del blog...");
+    console.log("⚙  Parseando contenido del blog...");
     const blogData = parseBlogHtml(content, url);
 
     if (blogData) {

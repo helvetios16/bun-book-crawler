@@ -43,3 +43,6 @@ export const USER_AGENT_METADATA = {
 export const GOODREADS_URL = "https://www.goodreads.com";
 export const BOOK_URL = "/book/show/";
 export const BLOG_URL = "/blog/show/";
+export const WORK_URL = "/work/editions/";
+export const SEARCH_PARAMS =
+  "?utf8=✓&sort=num_ratings&filter_by_format=Kindle+Edition&filter_by_language=spa";
