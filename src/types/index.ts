@@ -43,3 +43,12 @@ export interface Blog {
   tags?: string[];
   mentionedBooks?: (Book & { section?: string })[];
 }
+
+/**
+ * Options for filtering book editions.
+ */
+export interface BookFilterOptions {
+  sort?: string;
+  format?: string;
+  language?: string;
+}

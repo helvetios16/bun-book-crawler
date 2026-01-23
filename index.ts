@@ -21,6 +21,10 @@ async function main(): Promise<void> {
       console.log("📚 Libro encontrado:");
       console.log(`Legacy Id: ${book.legacyId}`);
       await goodreadsService.lookBookEditions(book.legacyId as number);
+
+      // Prueba de filtro: Inglés y Paperback (más probable que tenga muchas páginas)
+      console.log("🔍 Aplicando filtros de prueba (Carga de múltiples páginas)...");
+      await goodreadsService.lookBookFilter(book.legacyId as number, {});
     } else {
       console.log("! No se pudo extraer la información del libro.");
     }
