@@ -6,11 +6,16 @@
 import type { Page } from "puppeteer";
 import { BLOG_URL, BOOK_URL, GOODREADS_URL, WORK_URL } from "../config/constants";
 import { CacheManager } from "../core/cache-manager";
-import type { Book, BookFilterOptions } from "../types";
-import { delay, isValidBookId } from "../utils/util";
+import type { Book, BookFilterOptions, Edition } from "../types";
+import { delay, getErrorMessage, isValidBookId } from "../utils/util";
 import { parseBlogHtml } from "./blog-parser";
 import { parseBookData } from "./book-parser";
-import { type EditionsFilters, extractPaginationInfo, parseEditionsHtml } from "./editions-parser";
+import {
+  type EditionsFilters,
+  extractPaginationInfo,
+  parseEditionsHtml,
+  parseEditionsList,
+} from "./editions-parser";
 
 export class GoodreadsService {
   private readonly page: Page;
@@ -40,7 +45,7 @@ export class GoodreadsService {
         console.warn("! Datos en caché encontrados pero inválidos o incompletos.");
       }
     } catch (error: unknown) {
-      console.warn("! Error al leer/parsear caché, continuando con red:", error);
+      console.warn("! Error al leer/parsear caché, continuando con red:", getErrorMessage(error));
     }
 
     // 2. Navegación Web
@@ -101,7 +106,7 @@ export class GoodreadsService {
           // Parsear datos del libro
           bookData = parseBookData(parsedJson);
         } catch (e: unknown) {
-          console.warn("! Fallo al procesar datos de Next.js:", e);
+          console.warn("! Fallo al procesar datos de Next.js:", getErrorMessage(e));
         }
       }
     } else {
@@ -126,8 +131,9 @@ export class GoodreadsService {
         console.log("📦 Cache hit (Parsed JSON).");
         return;
       }
-    } catch (_error: unknown) {
-      // Ignorar error de caché
+    } catch (error: unknown) {
+      // Ignorar error de caché pero loguear para debug
+      console.warn("ℹ️ Cache miss o error al leer caché de ediciones:", getErrorMessage(error));
     }
 
     // 2. Navegación Web
@@ -194,8 +200,9 @@ export class GoodreadsService {
         console.log("📦 Cache hit (Parsed JSON).");
         return;
       }
-    } catch (_error: unknown) {
-      // Ignorar error de caché
+    } catch (error: unknown) {
+      // Ignorar error de caché pero loguear
+      console.warn("ℹ️ Cache miss o error al leer caché de blog:", getErrorMessage(error));
     }
 
     // 2. Navegación Web
@@ -299,11 +306,10 @@ export class GoodreadsService {
     console.log(`✅ Filtros validados. Iniciando escaneo en: ${baseUrlWithParams}`);
 
     const scrapedPages: string[] = [];
+    const allEditions: Edition[] = [];
 
     // --- Procesar Página 1 ---
     const page1Url = baseUrlWithParams;
-    // Intentar leer caché con extensión .html (sin sufijos extraños)
-    // El CacheManager usa hashUrl, así que la URL exacta mapea al archivo
     let page1Content = await this.cache.get(page1Url, ".html");
 
     if (!page1Content) {
@@ -314,7 +320,6 @@ export class GoodreadsService {
         throw new Error("No response");
       }
 
-      // Manejo básico de errores http
       if (response.status() === 404) {
         console.error("❌ Página no encontrada (404).");
         return;
@@ -333,6 +338,11 @@ export class GoodreadsService {
     }
     scrapedPages.push(page1Url);
 
+    // Parsear ediciones página 1
+    const page1Editions = parseEditionsList(page1Content);
+    allEditions.push(...page1Editions);
+    console.log(`📄 Página 1: ${page1Editions.length} ediciones encontradas.`);
+
     // --- Detectar Paginación ---
     const pagination = extractPaginationInfo(page1Content);
     console.log(`📊 Paginación detectada: ${pagination.totalPages} páginas totales.`);
@@ -341,37 +351,43 @@ export class GoodreadsService {
     if (pagination.totalPages > 1) {
       for (let i = 2; i <= pagination.totalPages; i++) {
         const pageUrl = `${baseUrlWithParams}&page=${i}`;
+        let content = await this.cache.get(pageUrl, ".html");
 
-        // Verificar si existe en caché usando el método has del manager (si existiera) o intentando get
-        // Como get lee el archivo, es costoso si son grandes, pero CacheManager no expone 'has' público en la interfaz que leí antes?
-        // Revisé CacheManager antes y tenía método `has`.
-        if (await this.cache.has(pageUrl)) {
+        if (!content) {
+          console.log(`🌐 Navegando a página ${i}/${pagination.totalPages}...`);
+          await delay(2500 + Math.random() * 2500);
+
+                      const response = await this.page.goto(pageUrl, { waitUntil: "domcontentloaded" });
+          
+                      if (!response || !response.ok()) {
+                        const status = response ? response.status() : "No Response";
+                        console.warn(`! Fallo al cargar página ${i} (Status: ${status}).`);
+                        continue;
+                      }
+                    await delay(1000);
+          await this.page.waitForSelector("body");
+          content = await this.page.content();
+          await this.cache.save({ url: pageUrl, content, force: true, extension: ".html" });
+        } else {
           console.log(`📦 Cache hit página ${i}/${pagination.totalPages}.`);
-          scrapedPages.push(pageUrl);
-          continue;
         }
 
-        console.log(`🌐 Navegando a página ${i}/${pagination.totalPages}...`);
-
-        // Pequeña pausa de cortesía entre 2.5 y 5 segundos
-        await delay(2500 + Math.random() * 2500);
-
-        const response = await this.page.goto(pageUrl, { waitUntil: "domcontentloaded" });
-
-        if (!response || !response.ok()) {
-          console.warn(`! Fallo al cargar página ${i} (Status: ${response?.status()}).`);
-          continue;
-        }
-
-        // Pequeña pausa de cortesía
-        await delay(1000);
-
-        await this.page.waitForSelector("body");
-        const content = await this.page.content();
-        await this.cache.save({ url: pageUrl, content, force: true, extension: ".html" });
         scrapedPages.push(pageUrl);
+
+        // Parsear ediciones página actual
+        const pageEditions = parseEditionsList(content);
+        allEditions.push(...pageEditions);
+        console.log(`📄 Página ${i}: ${pageEditions.length} ediciones encontradas.`);
       }
     }
+
+    // --- Guardar Resultados de Ediciones ---
+    await this.cache.save({
+      url: baseUrlWithParams,
+      content: JSON.stringify(allEditions, null, 2),
+      force: true,
+      extension: "-editions.json",
+    });
 
     // --- Guardar Reporte de Metadata ---
     const metadata = {
@@ -381,6 +397,7 @@ export class GoodreadsService {
       stats: {
         totalPages: pagination.totalPages,
         scrapedUrls: scrapedPages,
+        totalEditions: allEditions.length,
       },
     };
 
@@ -391,6 +408,6 @@ export class GoodreadsService {
       extension: "-filter-meta.json",
     });
 
-    console.log("✅ Proceso de filtrado completado y metadatos guardados.");
+    console.log(`✅ Proceso completado. ${allEditions.length} ediciones guardadas.`);
   }
 }

@@ -5,6 +5,7 @@
 
 import { BrowserClient } from "./src/core/browser-client";
 import { GoodreadsService } from "./src/services/goodreads-service";
+import { getErrorMessage } from "./src/utils/util";
 
 async function main(): Promise<void> {
   const browserClient = new BrowserClient();
@@ -22,9 +23,12 @@ async function main(): Promise<void> {
       console.log(`Legacy Id: ${book.legacyId}`);
       await goodreadsService.scrapeEditionsFilters(book.legacyId as number);
 
-      // Prueba de filtro: Inglés y Paperback (más probable que tenga muchas páginas)
+      // Prueba de filtro: Spanish y ebook (más probable que tenga muchas páginas)
       console.log("🔍 Aplicando filtros de prueba (Carga de múltiples páginas)...");
-      await goodreadsService.scrapeFilteredEditions(book.legacyId as number, {});
+      await goodreadsService.scrapeFilteredEditions(book.legacyId as number, {
+        language: "spa",
+        format: "Kindle Edition",
+      });
     } else {
       console.log("! No se pudo extraer la información del libro.");
     }
@@ -36,8 +40,8 @@ async function main(): Promise<void> {
     // await goodreadsService.scrapeBlog(targetBlogId);
     // console.log("✅ Proceso de blog finalizado.");
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error("❌ Ocurrió un error durante el proceso de scraping:", errorMessage);
+    const message = getErrorMessage(error);
+    console.error("❌ Ocurrió un error durante el proceso de scraping:", message);
   } finally {
     await browserClient.close();
     console.log("✨ Proceso completado.");

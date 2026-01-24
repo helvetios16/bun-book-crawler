@@ -1,5 +1,3 @@
-// src/types/index.ts
-
 /**
  * Represents the result of a scrape operation.
  */
@@ -51,4 +49,20 @@ export interface BookFilterOptions {
   sort?: string;
   format?: string;
   language?: string;
+}
+
+export interface Edition {
+  title: string;
+  link: string;
+  coverImage?: string;
+  format?: string;
+  pages?: number;
+  publishedDate?: string;
+  publisher?: string;
+  isbn?: string; // ISBN 13
+  isbn10?: string;
+  asin?: string;
+  language?: string;
+  averageRating?: number;
+  ratingsCount?: number;
 }
