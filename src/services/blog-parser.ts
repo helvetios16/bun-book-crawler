@@ -125,15 +125,19 @@ export function parseBlogHtml(html: string, url?: string): Blog | null {
 
     // Filter valid books:
     // 1. Must have Title or Image
-    // 2. Section (trimmed) must not be equal to the Blog Title (trimmed)
-    const books = booksWithContext.filter((b) => {
-      const hasContent = b.title || b.coverImage;
-      const cleanSection = b.section?.trim().toLowerCase();
-      const cleanTitle = title?.trim().toLowerCase();
+    // 2. Ensure Uniqueness by ID
+    const uniqueIds = new Set<string>();
+    const books: (Book & { section?: string })[] = [];
 
-      const isMainHeader = cleanTitle && cleanSection === cleanTitle;
-      return hasContent && !isMainHeader;
-    });
+    for (const b of booksWithContext) {
+      const hasContent = b.title || b.coverImage;
+      const numericId = b.id.split("-")[0]; // Normalize ID for uniqueness check
+
+      if (hasContent && !uniqueIds.has(numericId)) {
+        uniqueIds.add(numericId);
+        books.push(b);
+      }
+    }
 
     return {
       title,
