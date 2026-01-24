@@ -16,15 +16,15 @@ async function main(): Promise<void> {
     const goodreadsService = new GoodreadsService(page);
 
     // --- MODO LIBRO ---
-    const book = await goodreadsService.lookBook(bookId);
+    const book = await goodreadsService.scrapeBook(bookId);
     if (book) {
       console.log("📚 Libro encontrado:");
       console.log(`Legacy Id: ${book.legacyId}`);
-      await goodreadsService.lookBookEditions(book.legacyId as number);
+      await goodreadsService.scrapeEditionsFilters(book.legacyId as number);
 
       // Prueba de filtro: Inglés y Paperback (más probable que tenga muchas páginas)
       console.log("🔍 Aplicando filtros de prueba (Carga de múltiples páginas)...");
-      await goodreadsService.lookBookFilter(book.legacyId as number, {});
+      await goodreadsService.scrapeFilteredEditions(book.legacyId as number, {});
     } else {
       console.log("! No se pudo extraer la información del libro.");
     }
@@ -33,7 +33,7 @@ async function main(): Promise<void> {
     // console.log("\n--- Buscando Blog ---");
     // Usamos el ID del blog detectado en caché o uno de prueba
     // const targetBlogId = "3038-winners-wild-cards-from-past-goodreads-choice-awards";
-    // await goodreadsService.lookBlog(targetBlogId);
+    // await goodreadsService.scrapeBlog(targetBlogId);
     // console.log("✅ Proceso de blog finalizado.");
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);

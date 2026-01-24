@@ -20,7 +20,7 @@ export class GoodreadsService {
     this.page = page;
   }
 
-  public async lookBook(id: string): Promise<Book | null> {
+  public async scrapeBook(id: string): Promise<Book | null> {
     if (!isValidBookId(id)) {
       throw new Error(`Invalid Book ID format: ${id}`);
     }
@@ -115,7 +115,7 @@ export class GoodreadsService {
     return bookData;
   }
 
-  public async lookBookEditions(legacyId: string | number): Promise<void> {
+  public async scrapeEditionsFilters(legacyId: string | number): Promise<void> {
     const url = `${GOODREADS_URL}${WORK_URL}${legacyId}`;
     console.log(`🔎 Buscando ediciones del libro (Work ID: ${legacyId})...`);
 
@@ -182,7 +182,7 @@ export class GoodreadsService {
     }
   }
 
-  public async lookBlog(id: string): Promise<void> {
+  public async scrapeBlog(id: string): Promise<void> {
     const url = `${GOODREADS_URL}${BLOG_URL}${id}`;
     console.log(`🔎 Buscando blog ${id}...`);
 
@@ -250,7 +250,7 @@ export class GoodreadsService {
     }
   }
 
-  public async lookBookFilter(
+  public async scrapeFilteredEditions(
     legacyId: string | number,
     options: BookFilterOptions,
   ): Promise<void> {
