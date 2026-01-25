@@ -17,11 +17,7 @@ export interface Book {
   description?: string;
   author?: string;
   webUrl?: string;
-  genres?: string[];
-  series?: string[];
   averageRating?: number;
-  publicationDate?: string;
-  publisher?: string;
   pageCount?: number;
   language?: string;
   format?: string;
@@ -63,5 +59,4 @@ export interface Edition {
   asin?: string;
   language?: string;
   averageRating?: number;
-  ratingsCount?: number;
 }

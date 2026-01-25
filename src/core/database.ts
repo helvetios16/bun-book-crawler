@@ -14,13 +14,9 @@ interface BookRow {
   readonly description?: string;
   readonly average_rating?: number;
   readonly page_count?: number;
-  readonly publication_date?: string;
-  readonly publisher?: string;
   readonly language?: string;
   readonly format?: string;
   readonly cover_image?: string;
-  readonly genres?: string; // JSON string
-  readonly series?: string; // JSON string
   readonly updated_at: string;
 }
 
@@ -38,7 +34,7 @@ interface EditionRow {
   readonly language?: string;
   readonly format?: string;
   readonly average_rating?: number;
-  readonly ratings_count?: number;
+  readonly pages_count?: number;
   readonly cover_image?: string;
   readonly created_at: string;
 }
@@ -95,13 +91,9 @@ export class DatabaseService {
         description TEXT,
         average_rating REAL,
         page_count INTEGER,
-        publication_date TEXT,
-        publisher TEXT,
         language TEXT,
         format TEXT,
         cover_image TEXT,
-        genres TEXT,
-        series TEXT,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
     `);
@@ -138,7 +130,7 @@ export class DatabaseService {
         language TEXT,
         format TEXT,
         average_rating REAL,
-        ratings_count INTEGER,
+        pages_count INTEGER,
         cover_image TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
@@ -167,13 +159,9 @@ export class DatabaseService {
       description: result.description || undefined,
       averageRating: result.average_rating || undefined,
       pageCount: result.page_count || undefined,
-      publicationDate: result.publication_date || undefined,
-      publisher: result.publisher || undefined,
       language: result.language || undefined,
       format: result.format || undefined,
       coverImage: result.cover_image || undefined,
-      genres: result.genres ? JSON.parse(result.genres) : [],
-      series: result.series ? JSON.parse(result.series) : [],
     };
   }
 
@@ -198,7 +186,7 @@ export class DatabaseService {
       language: row.language || undefined,
       format: row.format || undefined,
       averageRating: row.average_rating || undefined,
-      ratingsCount: row.ratings_count || undefined,
+      pages: row.pages_count || undefined,
       coverImage: row.cover_image || undefined,
     }));
   }
@@ -209,13 +197,13 @@ export class DatabaseService {
     const query = this.db.prepare(`
       INSERT INTO books (
         id, legacy_id, title, title_complete, author, description, 
-        average_rating, page_count, publication_date, publisher, 
-        language, format, cover_image, genres, series, updated_at
+        average_rating, page_count,
+        language, format, cover_image, updated_at
       )
       VALUES (
         $id, $legacyId, $title, $titleComplete, $author, $description,
-        $averageRating, $pageCount, $publicationDate, $publisher,
-        $language, $format, $coverImage, $genres, $series, CURRENT_TIMESTAMP
+        $averageRating, $pageCount,
+        $language, $format, $coverImage, CURRENT_TIMESTAMP
       )
       ON CONFLICT(id) DO UPDATE SET
         legacy_id = excluded.legacy_id,
@@ -233,13 +221,9 @@ export class DatabaseService {
       $description: book.description || null,
       $averageRating: book.averageRating || null,
       $pageCount: book.pageCount || null,
-      $publicationDate: book.publicationDate || null,
-      $publisher: book.publisher || null,
       $language: book.language || null,
       $format: book.format || null,
       $coverImage: book.coverImage || null,
-      $genres: JSON.stringify(book.genres || []),
-      $series: JSON.stringify(book.series || []),
     });
   }
 
@@ -247,11 +231,11 @@ export class DatabaseService {
     const insert = this.db.prepare(`
       INSERT INTO editions (
         book_legacy_id, title, link, isbn, isbn10, asin, 
-        language, format, average_rating, ratings_count, cover_image
+        language, format, average_rating, pages_count, cover_image
       )
       VALUES (
         $legacyId, $title, $link, $isbn, $isbn10, $asin,
-        $language, $format, $rating, $count, $coverImage
+        $language, $format, $rating, $pages, $coverImage
       );
     `);
 
@@ -267,7 +251,7 @@ export class DatabaseService {
           $language: ed.language || null,
           $format: ed.format || null,
           $rating: ed.averageRating || 0,
-          $count: ed.ratingsCount || 0,
+          $pages: ed.pages || 0,
           $coverImage: ed.coverImage || null,
         });
       }

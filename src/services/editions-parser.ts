@@ -95,7 +95,6 @@ export function parseEditionsList(html: string): Edition[] {
       let asin: string | undefined;
       let language: string | undefined;
       let averageRating: number | undefined;
-      let ratingsCount: number | undefined;
 
       if (detailsContainer) {
         const detailRows = detailsContainer.querySelectorAll(".dataRow");
@@ -125,11 +124,6 @@ export function parseEditionsList(html: string): Edition[] {
             if (ratingMatch) {
               averageRating = parseFloat(ratingMatch[1]);
             }
-
-            const countMatch = valueText.match(/\(([\d,]+)\s+ratings\)/);
-            if (countMatch) {
-              ratingsCount = parseInt(countMatch[1].replace(/,/g, ""), 10);
-            }
           }
         });
       }
@@ -147,7 +141,6 @@ export function parseEditionsList(html: string): Edition[] {
         asin,
         language,
         averageRating,
-        ratingsCount,
       });
     });
 
