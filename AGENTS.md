@@ -4,6 +4,7 @@ Este archivo contiene convenciones y preferencias para los agentes de IA que tra
 
 Se utiliza biome para el formateo y linting del codigo.
 Se utiliza bun para el empaquetado y ejecucion del codigo.
+Se utiliza ';' para la ejecucion en la terminal. No se usa '&&'.
 
 ## Estructura de Commit
 
