@@ -20,26 +20,38 @@ function parseArgs(): ExportArgs {
   for (const arg of args) {
     if (arg.startsWith("--format=")) {
       const val = arg.split("=")[1].toLowerCase();
-      if (val === "json") params.format = "json";
+      if (val === "json") {
+        params.format = "json";
+      }
     } else if (arg.startsWith("--type=")) {
       const val = arg.split("=")[1].toLowerCase();
-      if (val === "full") params.type = "full";
+      if (val === "full") {
+        params.type = "full";
+      }
     }
   }
   return params;
 }
 
-function toCSV(data: any[]): string {
-  if (data.length === 0) return "";
-  const headers = Object.keys(data[0]).join(",");
+function toCSV(data: Record<string, unknown>[]): string {
+  if (data.length === 0) {
+    return "";
+  }
+  const firstRow = data[0];
+  if (!firstRow) {
+    return "";
+  }
+  const headers = Object.keys(firstRow).join(",");
   const rows = data.map((row) =>
     Object.values(row)
       .map((val) => {
-        if (val === null || val === undefined) return "";
+        if (val === null || val === undefined) {
+          return "";
+        }
         const str = String(val).replace(/"/g, '""'); // Escape quotes
         return `"${str}"`; // Quote fields
       })
-      .join(",")
+      .join(","),
   );
   return `${headers}\n${rows.join("\n")}`;
 }
@@ -106,7 +118,6 @@ function runExport() {
     writeFileSync(finalPath, content, "utf-8");
     console.log(`✅ Export successful! File saved to:\n   ${finalPath}`);
     console.log(`📊 Total rows exported: ${results.length}`);
-
   } catch (err: unknown) {
     console.error("❌ Export failed:", err instanceof Error ? err.message : String(err));
   } finally {
