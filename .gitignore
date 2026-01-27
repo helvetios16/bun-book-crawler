@@ -48,3 +48,6 @@ report-*
 
 # Docs exp
 docs-*/
+
+# Gemini
+.gemini/

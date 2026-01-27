@@ -87,9 +87,7 @@ function runExport() {
         b.average_rating as Rating,
         e.title as Edition_Title,
         e.language as Language,
-        e.format as Format,
-        e.isbn,
-        e.isbn10
+        e.format as Format
       FROM books b
       LEFT JOIN editions e ON b.legacy_id = e.book_legacy_id
       WHERE e.id IS NOT NULL

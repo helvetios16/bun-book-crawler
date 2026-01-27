@@ -43,7 +43,7 @@ try {
       }
       const editions = db
         .query(
-          "SELECT id, title, language, format, isbn, average_rating FROM editions WHERE book_legacy_id = ?",
+          "SELECT id, title, language, format, average_rating FROM editions WHERE book_legacy_id = ?",
         )
         .all(arg);
       if (editions.length === 0) {

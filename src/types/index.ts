@@ -55,9 +55,7 @@ export interface Edition {
   pages?: number;
   publishedDate?: string;
   publisher?: string;
-  isbn?: string; // ISBN 13
-  isbn10?: string;
-  asin?: string;
+  description?: string;
   language?: string;
   averageRating?: number;
   createdAt?: string;

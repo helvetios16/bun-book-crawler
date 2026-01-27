@@ -28,9 +28,7 @@ interface EditionRow {
   readonly book_legacy_id?: string;
   readonly title: string;
   readonly link: string;
-  readonly isbn?: string;
-  readonly isbn10?: string;
-  readonly asin?: string;
+  readonly description?: string;
   readonly language?: string;
   readonly format?: string;
   readonly average_rating?: number;
@@ -124,9 +122,7 @@ export class DatabaseService {
         book_legacy_id TEXT,
         title TEXT,
         link TEXT,
-        isbn TEXT,
-        isbn10 TEXT,
-        asin TEXT,
+        description TEXT,
         language TEXT,
         format TEXT,
         average_rating REAL,
@@ -141,6 +137,10 @@ export class DatabaseService {
   }
 
   // --- MÉTODOS DE LECTURA ---
+
+  public getDb(): Database {
+    return this.db;
+  }
 
   public getBook(id: string): Book | null {
     const query = this.db.prepare("SELECT * FROM books WHERE id = ?");
@@ -181,9 +181,7 @@ export class DatabaseService {
     return (results as unknown[]).filter(isEditionRow).map((row) => ({
       title: row.title,
       link: row.link,
-      isbn: row.isbn || undefined,
-      isbn10: row.isbn10 || undefined,
-      asin: row.asin || undefined,
+      description: row.description || undefined,
       language: row.language || undefined,
       format: row.format || undefined,
       averageRating: row.average_rating || undefined,
@@ -232,11 +230,11 @@ export class DatabaseService {
   public saveEditions(legacyId: string | number, editions: Edition[]): void {
     const insert = this.db.prepare(`
       INSERT INTO editions (
-        book_legacy_id, title, link, isbn, isbn10, asin, 
+        book_legacy_id, title, link, description, 
         language, format, average_rating, pages_count, cover_image
       )
       VALUES (
-        $legacyId, $title, $link, $isbn, $isbn10, $asin,
+        $legacyId, $title, $link, $description,
         $language, $format, $rating, $pages, $coverImage
       );
     `);
@@ -247,9 +245,7 @@ export class DatabaseService {
           $legacyId: String(legacyId),
           $title: ed.title,
           $link: ed.link,
-          $isbn: ed.isbn || null,
-          $isbn10: ed.isbn10 || null,
-          $asin: ed.asin || null,
+          $description: ed.description || null,
           $language: ed.language || null,
           $format: ed.format || null,
           $rating: ed.averageRating || 0,

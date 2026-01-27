@@ -1,4 +1,4 @@
-import { Database } from "bun:sqlite";
+import { DatabaseService } from "../src/core/database";
 
 interface SqlArgs {
   blogId: string;
@@ -21,9 +21,10 @@ function parseArgs(): SqlArgs {
   return params;
 }
 
-const db = new Database("library.sqlite");
+const dbService = new DatabaseService();
+const db = dbService.getDb();
 
-console.log("📂 Base de datos abierta.\n");
+console.log("📂 Base de datos abierta (via DatabaseService).\n");
 
 export async function main(): Promise<void> {
   const { blogId } = parseArgs();
@@ -67,7 +68,7 @@ export async function main(): Promise<void> {
   } catch (error) {
     console.error("❌ Error ejecutando consultas:", error);
   } finally {
-    db.close();
+    dbService.close();
     console.log("\n🔒 Base de datos cerrada.");
   }
 }

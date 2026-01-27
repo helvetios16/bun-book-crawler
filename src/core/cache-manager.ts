@@ -22,18 +22,36 @@ export class CacheManager {
   }
 
   public async has(url: string): Promise<boolean> {
-    const filename = this.getCacheFilePath(url);
-    const file = Bun.file(filename);
+    for (let i = 0; i < 3; i++) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split("T")[0];
 
-    return await file.exists();
+      const type = this.getContentType(url);
+      const filename = `${this.cacheDir}/${dateStr}/${type}/${hashUrl(url)}.html`;
+      const file = Bun.file(filename);
+
+      if (await file.exists()) {
+        return true;
+      }
+    }
+    return false;
   }
 
   public async get(url: string, extension: string = ".html"): Promise<string | undefined> {
-    const filename = this.getCacheFilePath(url, extension);
-    const file = Bun.file(filename);
+    // Look back for up to 3 days (today and 2 days before)
+    for (let i = 0; i < 3; i++) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split("T")[0];
 
-    if (await file.exists()) {
-      return await file.text();
+      const type = this.getContentType(url);
+      const filename = `${this.cacheDir}/${dateStr}/${type}/${hashUrl(url)}${extension}`;
+      const file = Bun.file(filename);
+
+      if (await file.exists()) {
+        return await file.text();
+      }
     }
 
     return undefined;

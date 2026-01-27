@@ -63,8 +63,7 @@ try {
     SELECT 
       b.title as Libro,
       e.title as Edicion,
-      e.language as Idioma,
-      e.isbn
+      e.language as Idioma
     FROM books b
     INNER JOIN editions e ON b.legacy_id = e.book_legacy_id
     WHERE e.language = 'Spanish' -- Solo ediciones en español
