@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "start": "bun run index.ts",
+    "dashboard": "bun run src/tui/dashboard/index.tsx",
     "cache:clear": "bun run scripts/clear-cache.ts",
     "lint": "biome lint .",
     "lint:fix": "biome lint --unsafe --write .",

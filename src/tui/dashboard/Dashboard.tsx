@@ -6,45 +6,45 @@ import { COLORS } from "../../config/tui-colors";
 
 // --- Interfaces ---
 interface LogEntry {
-  id: number;
-  timestamp: string;
-  level: "info" | "success" | "warning" | "error";
-  message: string;
+  readonly id: number;
+  readonly timestamp: string;
+  readonly level: "info" | "success" | "warning" | "error";
+  readonly message: string;
 }
 
 interface Stats {
-  booksFound: number;
-  pagesScraped: number;
-  errors: number;
-  queueSize: number;
-  cpuUsage: number;
-  memoryUsage: number;
+  readonly booksFound: number;
+  readonly pagesScraped: number;
+  readonly errors: number;
+  readonly queueSize: number;
+  readonly cpuUsage: number;
+  readonly memoryUsage: number;
 }
 
 interface StatCardProps {
-  title: string;
-  value: string | number;
-  color?: string;
+  readonly title: string;
+  readonly value: string | number;
+  readonly color?: string;
 }
 
 interface LogPanelProps {
-  logs: LogEntry[];
+  readonly logs: readonly LogEntry[];
 }
 
 interface ProgressBarProps {
-  progress: number;
-  label: string;
+  readonly progress: number;
+  readonly label: string;
 }
 
 interface DashboardProps {
-  renderer: Renderer;
+  readonly renderer: Renderer;
 }
 
 interface KeyboardKey {
-  name: string;
-  ctrl: boolean;
-  meta: boolean;
-  shift: boolean;
+  readonly name: string;
+  readonly ctrl: boolean;
+  readonly meta: boolean;
+  readonly shift: boolean;
 }
 
 const LEVEL_COLORS: Record<LogEntry["level"], string> = {
