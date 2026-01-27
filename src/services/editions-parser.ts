@@ -88,11 +88,8 @@ export function parseEditionsList(html: string): Edition[] {
         });
       }
 
-      // 4. Detalles (ISBN, ASIN, Idioma, Rating)
+      // 4. Detalles (Idioma, Rating)
       const detailsContainer = el.querySelector(".moreDetails");
-      let isbn: string | undefined;
-      let isbn10: string | undefined;
-      let asin: string | undefined;
       let language: string | undefined;
       let averageRating: number | undefined;
 
@@ -103,20 +100,7 @@ export function parseEditionsList(html: string): Edition[] {
           const valueEl = row.querySelector(".dataValue");
           const valueText = valueEl?.textContent?.trim() || "";
 
-          if (titleText.includes("ISBN")) {
-            // "9788466631990 (ISBN10: 8466631992)"
-            const isbnMatch = valueText.match(/(\d{13})/);
-            if (isbnMatch) {
-              isbn = isbnMatch[1];
-            }
-
-            const isbn10Match = valueText.match(/ISBN10:\s*(\d{9,10}[Xx]?)/);
-            if (isbn10Match) {
-              isbn10 = isbn10Match[1];
-            }
-          } else if (titleText.includes("ASIN")) {
-            asin = valueText;
-          } else if (titleText.includes("Edition language")) {
+          if (titleText.includes("Edition language")) {
             language = valueText;
           } else if (titleText.includes("Average rating")) {
             // "4.55 (25,860 ratings)"
@@ -136,9 +120,7 @@ export function parseEditionsList(html: string): Edition[] {
         pages,
         publishedDate,
         publisher,
-        isbn,
-        isbn10,
-        asin,
+        description: undefined,
         language,
         averageRating,
       });
