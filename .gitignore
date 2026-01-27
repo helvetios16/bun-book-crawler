@@ -45,3 +45,6 @@ cache/
 # Export
 exports/
 report-*
+
+# Docs exp
+docs-*/
