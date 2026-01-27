@@ -7,6 +7,7 @@ interface Particle {
   id: string;
   x: number;
   y: number;
+  dx: number;
   icon: string;
   speed: number;
 }
@@ -31,8 +32,9 @@ export function IconBackground({
       id: `particle-${i}`,
       x: Math.floor(Math.random() * maxWidth),
       y: Math.floor(Math.random() * maxHeight),
+      dx: Math.floor(Math.random() * 3) - 1, // -1, 0, or 1
       icon: BACKGROUND_ICONS[Math.floor(Math.random() * BACKGROUND_ICONS.length)],
-      speed: Math.random() > 0.5 ? 1 : 0.5, // Simple speed variation
+      speed: Math.random() > 0.5 ? 1 : 0.5,
     }));
   });
 
@@ -40,17 +42,35 @@ export function IconBackground({
     const interval = setInterval(() => {
       setParticles((prevParticles) =>
         prevParticles.map((p) => {
+          let newX = p.x + p.dx;
           const newY = p.y + 1;
 
-          if (newY >= maxHeight) {
-            return {
-              ...p,
-              y: 0,
-              x: Math.floor(Math.random() * maxWidth),
-              icon: BACKGROUND_ICONS[Math.floor(Math.random() * BACKGROUND_ICONS.length)],
-            };
+          // Simple random direction change occasionally to make it feel more organic
+          const newDx = Math.random() < 0.1 ? Math.floor(Math.random() * 3) - 1 : p.dx;
+
+          if (newY >= maxHeight || newX < 0 || newX >= maxWidth) {
+            // Reset if out of bounds (bottom or sides) - or maybe just wrap sides?
+            // Let's reset if hits bottom, wrap sides for smoother feel.
+            if (newY >= maxHeight) {
+              return {
+                ...p,
+                y: 0,
+                x: Math.floor(Math.random() * maxWidth),
+                dx: Math.floor(Math.random() * 3) - 1,
+                icon: BACKGROUND_ICONS[Math.floor(Math.random() * BACKGROUND_ICONS.length)],
+              };
+            }
+
+            // Wrap sides
+            if (newX < 0) {
+              newX = maxWidth - 1;
+            }
+            if (newX >= maxWidth) {
+              newX = 0;
+            }
           }
-          return { ...p, y: newY };
+
+          return { ...p, x: newX, y: newY, dx: newDx };
         }),
       );
     }, speed);

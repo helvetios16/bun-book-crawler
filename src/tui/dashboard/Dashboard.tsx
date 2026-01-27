@@ -59,7 +59,7 @@ export function Dashboard({ renderer }: DashboardProps): JSX.Element {
   };
 
   return (
-    <IconBackground intensity={20} speed={400}>
+    <IconBackground intensity={20} speed={200}>
       <box
         flexDirection="column"
         width="100%"
