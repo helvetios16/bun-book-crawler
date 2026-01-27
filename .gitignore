@@ -46,4 +46,5 @@ cache/
 exports/
 report-*
 
-docs-opentui/
+# Docs exp
+docs-*/
