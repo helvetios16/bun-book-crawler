@@ -12,10 +12,12 @@ export class BlogRepository {
   private readonly saveBlogStmt: Statement;
   private readonly saveRelStmt: Statement;
   private readonly getAllStmt: Statement;
+  private readonly deleteStmt: Statement;
+  private readonly exclusiveBooksStmt: Statement;
 
   constructor(private readonly db: Database) {
     this.saveBlogStmt = this.db.prepare(`
-      INSERT INTO blogs (id, title, url) 
+      INSERT INTO blogs (id, title, url)
       VALUES ($id, $title, $url)
       ON CONFLICT(id) DO UPDATE SET title = excluded.title;
     `);
@@ -25,6 +27,16 @@ export class BlogRepository {
     `);
 
     this.getAllStmt = this.db.prepare("SELECT * FROM blogs");
+
+    this.deleteStmt = this.db.prepare("DELETE FROM blogs WHERE id = ?");
+
+    this.exclusiveBooksStmt = this.db.prepare(`
+      SELECT book_id FROM blog_books
+      WHERE blog_id = ?
+      AND book_id NOT IN (
+        SELECT book_id FROM blog_books WHERE blog_id != ?
+      )
+    `);
   }
 
   public saveReference(params: {
@@ -55,5 +67,14 @@ export class BlogRepository {
       webUrl: row.url,
       createdAt: row.scraped_at,
     }));
+  }
+
+  public delete(id: string): void {
+    this.deleteStmt.run(id);
+  }
+
+  public getExclusiveBookIds(blogId: string): string[] {
+    const rows = this.exclusiveBooksStmt.all(blogId, blogId) as { book_id: string }[];
+    return rows.map((r) => r.book_id);
   }
 }

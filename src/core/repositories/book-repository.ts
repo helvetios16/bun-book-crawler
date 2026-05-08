@@ -21,6 +21,7 @@ export class BookRepository {
   private readonly getStmt: Statement;
   private readonly getAllStmt: Statement;
   private readonly refreshStmt: Statement;
+  private readonly deleteStmt: Statement;
 
   constructor(private readonly db: Database) {
     this.saveStmt = this.db.prepare(`
@@ -46,6 +47,8 @@ export class BookRepository {
     this.refreshStmt = this.db.prepare(
       "UPDATE books SET updated_at = CURRENT_TIMESTAMP WHERE id = ?",
     );
+
+    this.deleteStmt = this.db.prepare("DELETE FROM books WHERE id = ?");
   }
 
   public save(book: Book): void {
@@ -76,6 +79,19 @@ export class BookRepository {
 
   public refreshTimestamp(id: string): void {
     this.refreshStmt.run(id);
+  }
+
+  public delete(id: string): void {
+    this.deleteStmt.run(id);
+  }
+
+  public deleteMany(ids: string[]): void {
+    const tx = this.db.transaction(() => {
+      for (const id of ids) {
+        this.deleteStmt.run(id);
+      }
+    });
+    tx();
   }
 
   private mapRow(row: BookRow): Book {

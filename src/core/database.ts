@@ -172,6 +172,46 @@ export class DatabaseService {
     this.metadata.refresh(hash);
   }
 
+  public reset(): void {
+    this.db.run("DELETE FROM editions");
+    this.db.run("DELETE FROM blog_books");
+    this.db.run("DELETE FROM books");
+    this.db.run("DELETE FROM blogs");
+    this.db.run("DELETE FROM sessions");
+    this.db.run("DELETE FROM http_metadata");
+  }
+
+  public purgeBook(bookId: string): void {
+    const book = this.books.getById(bookId);
+    if (!book) {
+      return;
+    }
+
+    if (book.legacyId) {
+      this.editions.deleteByLegacyId(book.legacyId);
+    }
+    this.db.prepare("DELETE FROM blog_books WHERE book_id = ?").run(bookId);
+    this.books.delete(bookId);
+  }
+
+  public purgeBlog(blogId: string): void {
+    const exclusiveBookIds = this.blogs.getExclusiveBookIds(blogId);
+
+    for (const bookId of exclusiveBookIds) {
+      const book = this.books.getById(bookId);
+      if (book?.legacyId) {
+        this.editions.deleteByLegacyId(book.legacyId);
+      }
+    }
+
+    if (exclusiveBookIds.length > 0) {
+      this.books.deleteMany(exclusiveBookIds);
+    }
+
+    this.db.prepare("DELETE FROM blog_books WHERE blog_id = ?").run(blogId);
+    this.blogs.delete(blogId);
+  }
+
   public close(): void {
     this.db.close();
   }

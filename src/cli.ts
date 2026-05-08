@@ -119,7 +119,41 @@ cli.command("cache:clear", "Limpia la caché de descargas").action(() => {
   runScript("scripts/cache/clear.ts", []);
 });
 
-// 5. Workflow (Legacy / Single blog)
+// 5. DB management
+cli
+  .command("db:reset", "Borra todo el contenido de la base de datos")
+  .option("--force", "Omitir confirmación interactiva")
+  .action((options) => {
+    const args: string[] = [];
+    if (options.force) {
+      args.push("--force");
+    }
+    runScript("scripts/db/reset.ts", args);
+  });
+
+cli
+  .command("db:delete-book", "Busca y borra libros junto a sus ediciones y referencias")
+  .option("--force", "Omitir confirmación interactiva")
+  .action((options) => {
+    const args: string[] = [];
+    if (options.force) {
+      args.push("--force");
+    }
+    runScript("scripts/db/delete-book.ts", args);
+  });
+
+cli
+  .command("db:delete-blog", "Selecciona y borra blogs junto a sus libros exclusivos")
+  .option("--force", "Omitir confirmación interactiva")
+  .action((options) => {
+    const args: string[] = [];
+    if (options.force) {
+      args.push("--force");
+    }
+    runScript("scripts/db/delete-blog.ts", args);
+  });
+
+// 6. Workflow (Legacy / Single blog)
 cli
   .command("workflow <blogId>", "Ejecuta el flujo para un solo blog (legacy)")
   .option("--language <lang>", "Código de idioma", { default: "spa" })
