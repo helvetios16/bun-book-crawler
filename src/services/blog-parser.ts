@@ -106,16 +106,16 @@ export function parseBlogHtml(html: string, url?: string): Blog | null {
     }
 
     // --- Contextual Book Extraction Logic ---
+    // Two-pass strategy: first try the precise tooltip-container format (modern blogs).
+    // Only fall back to loose link scanning if no tooltip books were found (older blog formats).
     const booksWithContext: BookWithSection[] = [];
     let currentSection = "Intro";
 
-    // Recursive function to traverse DOM and capture context
-    function traverse(node: Node) {
+    function traversePrecise(node: Node) {
       if (!node) {
         return;
       }
 
-      // Only process Elements
       if (node.nodeType === 1) {
         const element = node as Element;
 
@@ -169,8 +169,31 @@ export function parseBlogHtml(html: string, url?: string): Blog | null {
             }
           }
         }
+      }
 
-        // 4. Fallback: Detect loose Book Links (for older blog formats)
+      if (node.childNodes && node.childNodes.length > 0) {
+        for (const child of node.childNodes) {
+          traversePrecise(child);
+        }
+      }
+    }
+
+    function traverseFallback(node: Node) {
+      if (!node) {
+        return;
+      }
+
+      if (node.nodeType === 1) {
+        const element = node as Element;
+
+        if (/^H[1-6]$/.test(element.tagName)) {
+          const headerText = element.textContent?.trim();
+          if (headerText) {
+            currentSection = headerText;
+          }
+        }
+
+        // Fallback: Detect loose Book Links (for older blog formats)
         if (element.tagName === "A") {
           const href = element.getAttribute("href");
           const fullId = extractBookIdFromHref(href);
@@ -210,12 +233,15 @@ export function parseBlogHtml(html: string, url?: string): Blog | null {
 
       if (node.childNodes && node.childNodes.length > 0) {
         for (const child of node.childNodes) {
-          traverse(child);
+          traverseFallback(child);
         }
       }
     }
 
-    traverse(contentContainer);
+    traversePrecise(contentContainer);
+    if (booksWithContext.length === 0) {
+      traverseFallback(contentContainer);
+    }
 
     // Filter valid books:
     // 1. Must have Title or Image
