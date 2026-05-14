@@ -114,7 +114,41 @@ cli
     runScript("scripts/cli/report-books-relations.ts", args);
   });
 
-// 4. Cache
+// 4. Set Cover (mínimas páginas para cubrir todos los retos)
+cli
+  .command("set-cover", "Calcula qué libros leer para cubrir todos los retos con mínimas páginas")
+  .option("--language <lang>", "Código de idioma", { default: "spa" })
+  .option("--format <fmt>", "Formatos separados por coma", { default: "ebook,Kindle Edition" })
+  .option("--blogs <ids>", "IDs de blogs separados por coma")
+  .option("--sort <type>", "Orden del picker de blogs (date, name, id)", { default: "date" })
+  .option("--algorithm <algo>", "Algoritmo: greedy (aprox.) o exact (DP óptimo, ≤20 blogs)", {
+    default: "greedy",
+  })
+  .option("--output <path>", "Nombre del archivo de salida")
+  .action((options) => {
+    const args: string[] = [];
+    if (options.language) {
+      args.push(`--language=${options.language}`);
+    }
+    if (options.format) {
+      args.push(`--format=${options.format}`);
+    }
+    if (options.blogs) {
+      args.push(`--blogs=${options.blogs}`);
+    }
+    if (options.sort) {
+      args.push(`--sort=${options.sort}`);
+    }
+    if (options.algorithm) {
+      args.push(`--algorithm=${options.algorithm}`);
+    }
+    if (options.output) {
+      args.push(`--output=${options.output}`);
+    }
+    runScript("scripts/cli/set-cover-books.ts", args);
+  });
+
+// 5. Cache
 cli.command("cache:clear", "Limpia la caché de descargas").action(() => {
   runScript("scripts/cache/clear.ts", []);
 });

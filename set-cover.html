@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Set Cover - Retos de Lectura</title>
+    <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+    <script>
+        const style = document.createElement('style');
+        style.type = 'text/tailwindcss';
+        style.textContent = `@theme { --dark-mode: selector(.dark); }`;
+        document.head.appendChild(style);
+    </script>
+    <style type="text/css">
+        :root { color-scheme: dark; }
+        .modal-open { overflow: hidden; }
+        .line-clamp-2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(31,41,55,0.5); border-radius: 3px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.4); border-radius: 3px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(99,102,241,0.6); }
+        #bookModal { opacity: 0; transition: opacity 0.25s ease; pointer-events: none; }
+        #bookModal.active { opacity: 1; pointer-events: auto; }
+        #bookModal .modal-content { transform: scale(0.95) translateY(12px); transition: transform 0.25s ease; }
+        #bookModal.active .modal-content { transform: scale(1) translateY(0); }
+        .drop-zone.dragging { border-color: rgb(99,102,241); background: rgba(99,102,241,0.08); }
+    </style>
+</head>
+<body class="bg-gray-950 min-h-screen text-gray-200">
+
+<div class="max-w-7xl mx-auto px-4 md:px-8 py-6 md:py-10">
+
+    <!-- Header -->
+    <header class="text-center mb-8">
+        <h1 class="text-3xl md:text-4xl font-extrabold text-white tracking-tight">Set Cover · Retos de Lectura</h1>
+        <p class="text-sm text-gray-500 mt-1">Minimas paginas para cubrir todos tus retos</p>
+    </header>
+
+    <!-- Drop zone -->
+    <div id="emptyState" class="drop-zone border-2 border-dashed border-gray-700 rounded-2xl p-12 md:p-20 text-center mb-10 transition-colors duration-200">
+        <div class="flex flex-col items-center gap-4">
+            <svg aria-hidden="true" class="w-16 h-16 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+            <p class="text-gray-400 text-lg font-medium">Arrastra el JSON de set-cover aqui</p>
+            <p class="text-gray-600 text-sm">o selecciona el archivo manualmente</p>
+            <label for="fileInput" class="mt-2 inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-5 py-2.5 rounded-lg cursor-pointer transition-colors shadow-lg shadow-indigo-900/30">
+                <svg aria-hidden="true" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                Seleccionar archivo
+            </label>
+            <input type="file" id="fileInput" accept=".json" class="hidden">
+        </div>
+    </div>
+
+    <!-- Main content (hidden until loaded) -->
+    <div id="mainContent" class="hidden">
+
+        <!-- Stats bar -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+            <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 text-center">
+                <p class="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1">Libros</p>
+                <p id="statBooks" class="text-2xl font-extrabold text-white">—</p>
+            </div>
+            <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 text-center">
+                <p class="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1">Paginas totales</p>
+                <p id="statPages" class="text-2xl font-extrabold text-indigo-400">—</p>
+            </div>
+            <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 text-center">
+                <p class="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1">Retos cubiertos</p>
+                <p id="statBlogs" class="text-2xl font-extrabold text-emerald-400">—</p>
+            </div>
+            <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 text-center">
+                <p class="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1">Excluidos</p>
+                <p id="statExcluded" class="text-2xl font-extrabold text-gray-500">—</p>
+            </div>
+        </div>
+
+        <!-- Params chip + change file -->
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-8">
+            <div class="flex flex-wrap gap-2">
+                <span id="paramLang" class="text-xs bg-gray-800 border border-gray-700 text-gray-400 px-3 py-1 rounded-full"></span>
+                <span id="paramFormats" class="text-xs bg-gray-800 border border-gray-700 text-gray-400 px-3 py-1 rounded-full"></span>
+            </div>
+            <label for="fileInput" class="inline-flex items-center gap-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 text-sm font-medium px-4 py-2 rounded-lg cursor-pointer transition-colors">
+                <svg aria-hidden="true" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                Cambiar archivo
+            </label>
+        </div>
+
+        <!-- Section 1: Selected books -->
+        <section class="mb-10">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-bold text-white">Seleccion recomendada</h2>
+                <div class="relative">
+                    <svg aria-hidden="true" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <input type="text" id="searchInput" placeholder="Buscar titulo o autor..." class="bg-gray-900 border border-gray-700 text-gray-200 text-sm rounded-lg pl-10 pr-4 py-2 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-600 outline-none transition-colors w-56">
+                </div>
+            </div>
+            <div id="selectedGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"></div>
+            <p id="noResults" class="hidden text-gray-600 text-sm text-center py-8">Sin resultados para la busqueda.</p>
+        </section>
+
+        <!-- Section 2: Coverage table -->
+        <section class="mb-10">
+            <h2 class="text-lg font-bold text-white mb-4">Cobertura por reto</h2>
+            <div class="rounded-xl border border-gray-800 overflow-hidden">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="bg-gray-900 border-b border-gray-800">
+                            <th class="text-left text-[10px] text-gray-500 uppercase font-bold tracking-wider px-4 py-3 w-2/5">Reto / Blog</th>
+                            <th class="text-left text-[10px] text-gray-500 uppercase font-bold tracking-wider px-4 py-3">Libros que lo cubren</th>
+                        </tr>
+                    </thead>
+                    <tbody id="coverageBody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Section 3: Excluded -->
+        <section class="mb-10">
+            <button type="button" id="excludedToggle" class="flex items-center gap-2 text-gray-500 hover:text-gray-300 transition-colors mb-3 group">
+                <svg aria-hidden="true" id="excludedChevron" class="w-4 h-4 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+                <span class="text-sm font-semibold">Excluidos (sin edicion o datos de paginas)</span>
+                <span id="excludedCount" class="text-xs bg-gray-800 border border-gray-700 px-2 py-0.5 rounded-full">0</span>
+            </button>
+            <div id="excludedList" class="hidden space-y-1.5"></div>
+        </section>
+
+    </div>
+
+    <div id="errorMessage" class="text-red-400 text-center mt-10 font-medium"></div>
+</div>
+
+<!-- Modal -->
+<div id="bookModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+    <div class="modal-content bg-gray-900 border border-gray-700/80 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden shadow-2xl shadow-black/50 flex flex-col md:flex-row relative">
+        <button type="button" id="closeModal" class="absolute top-3 right-3 text-gray-500 hover:text-white bg-gray-800/80 hover:bg-gray-700 p-1.5 rounded-full z-10 transition-colors">
+            <svg aria-hidden="true" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        </button>
+        <div class="w-full md:w-[220px] shrink-0 bg-gray-950 flex items-center justify-center p-6 border-b md:border-b-0 md:border-r border-gray-800">
+            <img id="modalCover" src="" alt="" class="max-w-full max-h-[300px] rounded-lg shadow-2xl shadow-black/60 object-contain">
+        </div>
+        <div class="flex-grow p-6 overflow-y-auto custom-scrollbar">
+            <h2 id="modalTitle" class="text-xl font-bold text-white mb-1 leading-tight"></h2>
+            <p id="modalAuthor" class="text-sm text-indigo-400 font-medium mb-5"></p>
+
+            <div class="grid grid-cols-3 gap-3 mb-5">
+                <div class="bg-gray-800/60 rounded-lg p-3 border border-gray-800">
+                    <span class="text-[10px] text-gray-500 uppercase font-bold tracking-wider block mb-1">Paginas</span>
+                    <p id="modalPages" class="text-sm font-bold text-indigo-300"></p>
+                </div>
+                <div class="bg-gray-800/60 rounded-lg p-3 border border-gray-800">
+                    <span class="text-[10px] text-gray-500 uppercase font-bold tracking-wider block mb-1">Fuente</span>
+                    <p id="modalSource" class="text-sm text-gray-300"></p>
+                </div>
+                <div class="bg-gray-800/60 rounded-lg p-3 border border-gray-800">
+                    <span class="text-[10px] text-gray-500 uppercase font-bold tracking-wider block mb-1">Rating</span>
+                    <p id="modalRating" class="text-sm text-yellow-400 font-bold"></p>
+                </div>
+            </div>
+
+            <div class="mb-5">
+                <h3 class="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-2">Cubre los retos</h3>
+                <div id="modalBlogs" class="flex flex-wrap gap-2"></div>
+            </div>
+
+            <div id="modalEditionsContainer" class="hidden">
+                <h3 class="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-3">Ediciones encontradas</h3>
+                <div id="modalEditions" class="space-y-2"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const fileInput = document.getElementById('fileInput');
+    const emptyState = document.getElementById('emptyState');
+    const mainContent = document.getElementById('mainContent');
+    const errorMessage = document.getElementById('errorMessage');
+    const searchInput = document.getElementById('searchInput');
+
+    const statBooks = document.getElementById('statBooks');
+    const statPages = document.getElementById('statPages');
+    const statBlogs = document.getElementById('statBlogs');
+    const statExcluded = document.getElementById('statExcluded');
+    const paramLang = document.getElementById('paramLang');
+    const paramFormats = document.getElementById('paramFormats');
+
+    const selectedGrid = document.getElementById('selectedGrid');
+    const noResults = document.getElementById('noResults');
+    const coverageBody = document.getElementById('coverageBody');
+    const excludedToggle = document.getElementById('excludedToggle');
+    const excludedChevron = document.getElementById('excludedChevron');
+    const excludedList = document.getElementById('excludedList');
+    const excludedCount = document.getElementById('excludedCount');
+
+    const bookModal = document.getElementById('bookModal');
+    const closeModal = document.getElementById('closeModal');
+    const modalCover = document.getElementById('modalCover');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalAuthor = document.getElementById('modalAuthor');
+    const modalPages = document.getElementById('modalPages');
+    const modalSource = document.getElementById('modalSource');
+    const modalRating = document.getElementById('modalRating');
+    const modalBlogs = document.getElementById('modalBlogs');
+    const modalEditions = document.getElementById('modalEditions');
+    const modalEditionsContainer = document.getElementById('modalEditionsContainer');
+
+    let reportData = null;
+    let searchDebounce = null;
+
+    function escapeHtml(str) {
+        if (!str) { return ''; }
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function sanitizeUrl(url) {
+        if (!url) { return ''; }
+        try {
+            const parsed = new URL(url);
+            if (parsed.protocol === 'https:' || parsed.protocol === 'http:') { return url; }
+        } catch {}
+        return '';
+    }
+
+    function normalize(str) {
+        return String(str || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    }
+
+    // Drag & drop
+    ['dragenter', 'dragover'].forEach(evt => {
+        emptyState.addEventListener(evt, e => { e.preventDefault(); emptyState.classList.add('dragging'); });
+    });
+    ['dragleave', 'drop'].forEach(evt => {
+        emptyState.addEventListener(evt, e => { e.preventDefault(); emptyState.classList.remove('dragging'); });
+    });
+    emptyState.addEventListener('drop', e => {
+        const file = e.dataTransfer.files[0];
+        if (file?.name.endsWith('.json')) { loadFile(file); }
+    });
+    fileInput.addEventListener('change', e => {
+        const file = e.target.files[0];
+        if (file) { loadFile(file); }
+    });
+
+    function loadFile(file) {
+        const reader = new FileReader();
+        reader.onload = event => {
+            try {
+                reportData = JSON.parse(event.target.result);
+                emptyState.classList.add('hidden');
+                mainContent.classList.remove('hidden');
+                errorMessage.textContent = '';
+                renderAll();
+            } catch (err) {
+                errorMessage.textContent = `Error al leer el archivo JSON: ${err.message}`;
+            }
+        };
+        reader.onerror = () => { errorMessage.textContent = 'Error al leer el archivo.'; };
+        reader.readAsText(file);
+    }
+
+    function renderAll() {
+        renderStats();
+        renderParams();
+        renderSelectedGrid();
+        renderCoverageTable();
+        renderExcluded();
+    }
+
+    function renderStats() {
+        const t = reportData.totals || {};
+        statBooks.textContent = t.selectedBooks ?? '—';
+        statPages.textContent = (t.totalPages ?? 0).toLocaleString();
+        statBlogs.textContent = `${t.blogsCovered ?? '—'} / ${t.blogsTotal ?? '—'}`;
+        statExcluded.textContent = (reportData.excluded || []).length;
+
+        if ((t.blogsUncovered || []).length > 0) {
+            statBlogs.classList.remove('text-emerald-400');
+            statBlogs.classList.add('text-amber-400');
+        }
+    }
+
+    function renderParams() {
+        const p = reportData.params || {};
+        paramLang.textContent = `Idioma: ${p.language || '—'}`;
+        paramFormats.textContent = `Formatos: ${(p.formats || []).join(', ') || '—'}`;
+    }
+
+    function renderSelectedGrid(query) {
+        selectedGrid.innerHTML = '';
+        const books = reportData.selected || [];
+        const q = normalize(query || '');
+
+        const filtered = q
+            ? books.filter(b => normalize(b.title).includes(q) || normalize(b.author).includes(q))
+            : books;
+
+        noResults.classList.toggle('hidden', filtered.length > 0 || books.length === 0);
+
+        const blogById = new Map((reportData.blogs || []).map(b => [b.id, b]));
+        const fragment = document.createDocumentFragment();
+
+        filtered.forEach(book => {
+            const card = document.createElement('div');
+            card.className = 'bg-gray-900 rounded-xl border border-gray-800 overflow-hidden hover:border-indigo-500/50 transition-all duration-300 flex flex-col cursor-pointer group';
+            card.addEventListener('click', () => showModal(book, blogById));
+
+            const coverUrl = sanitizeUrl(book.coverImage || '');
+            const rating = book.averageRating ? parseFloat(book.averageRating).toFixed(1) : null;
+            const blogCount = (book.coversBlogs || []).length;
+            const isFallback = book.pageSource === 'edition-fallback';
+
+            const coverHtml = coverUrl
+                ? `<img src="${escapeHtml(coverUrl)}" alt="${escapeHtml(book.title)}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy">`
+                : `<div class="flex items-center justify-center h-full text-gray-700 text-xs">Sin portada</div>`;
+
+            card.innerHTML = `
+                <div class="aspect-[2/3] w-full overflow-hidden bg-gray-800 relative">
+                    ${coverHtml}
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-2.5">
+                        <span class="text-[10px] text-white font-bold bg-indigo-600/90 px-2 py-1 rounded">VER</span>
+                    </div>
+                    <div class="absolute top-1.5 right-1.5 bg-indigo-700 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow">
+                        ${book.pageCount.toLocaleString()} pag.
+                    </div>
+                    ${blogCount > 1 ? `
+                    <div class="absolute top-1.5 left-1.5 bg-emerald-700 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow">
+                        ${blogCount} retos
+                    </div>` : ''}
+                    ${isFallback ? `
+                    <div class="absolute bottom-1.5 left-1.5 bg-amber-700/90 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full shadow">
+                        ed.
+                    </div>` : ''}
+                </div>
+                <div class="p-2.5 flex-grow flex flex-col gap-1">
+                    <h2 class="text-xs font-bold line-clamp-2 text-white leading-snug group-hover:text-indigo-300 transition-colors" title="${escapeHtml(book.title)}">${escapeHtml(book.title || 'Sin titulo')}</h2>
+                    <p class="text-[11px] text-gray-500 truncate">${escapeHtml(book.author || 'Autor desconocido')}</p>
+                    ${rating ? `<div class="mt-auto pt-1 text-[10px] text-yellow-500 font-semibold">${rating} ★</div>` : ''}
+                </div>
+            `;
+
+            const img = card.querySelector('img');
+            if (img) {
+                img.addEventListener('error', function() {
+                    this.parentElement.innerHTML = '<div class="flex items-center justify-center h-full text-gray-600 text-xs">Sin portada</div>';
+                });
+            }
+
+            fragment.appendChild(card);
+        });
+
+        selectedGrid.appendChild(fragment);
+    }
+
+    function renderCoverageTable() {
+        coverageBody.innerHTML = '';
+        const blogs = reportData.blogs || [];
+        const selectedById = new Map((reportData.selected || []).map(b => [b.id, b]));
+        const uncoveredSet = new Set((reportData.totals?.blogsUncovered || []));
+
+        const fragment = document.createDocumentFragment();
+
+        blogs.forEach((blog, idx) => {
+            const isUncovered = uncoveredSet.has(blog.id);
+            const tr = document.createElement('tr');
+            tr.className = `border-b border-gray-800/60 ${idx % 2 === 0 ? 'bg-gray-900/40' : ''} ${isUncovered ? 'bg-red-950/20' : ''}`;
+
+            const blogLink = sanitizeUrl(blog.url)
+                ? `<a href="${escapeHtml(blog.url)}" target="_blank" class="hover:text-indigo-400 transition-colors">${escapeHtml(blog.title)}</a>`
+                : escapeHtml(blog.title);
+
+            let coveringHtml = '';
+            if (isUncovered) {
+                coveringHtml = `<span class="text-xs text-red-400 font-medium">Sin candidatos validos</span>`;
+            } else {
+                const coveringBooks = (blog.coveredBy || []).map(id => {
+                    const b = selectedById.get(id);
+                    if (!b) { return ''; }
+                    return `<button type="button" onclick="showModalById('${escapeHtml(id)}')" class="text-xs bg-indigo-900/40 hover:bg-indigo-800/60 text-indigo-300 hover:text-white border border-indigo-800/50 px-2 py-0.5 rounded transition-colors">${escapeHtml(b.title)}</button>`;
+                }).filter(Boolean).join('');
+                coveringHtml = `<div class="flex flex-wrap gap-1.5">${coveringBooks}</div>`;
+            }
+
+            tr.innerHTML = `
+                <td class="px-4 py-3 text-sm ${isUncovered ? 'text-red-400' : 'text-gray-300'} font-medium">
+                    ${isUncovered ? '<span class="text-red-500 mr-1.5">⚠</span>' : '<span class="text-emerald-500 mr-1.5">✓</span>'}
+                    ${blogLink}
+                </td>
+                <td class="px-4 py-3">${coveringHtml}</td>
+            `;
+            fragment.appendChild(tr);
+        });
+
+        coverageBody.appendChild(fragment);
+    }
+
+    function renderExcluded() {
+        excludedList.innerHTML = '';
+        const excluded = reportData.excluded || [];
+        excludedCount.textContent = excluded.length;
+
+        const fragment = document.createDocumentFragment();
+        excluded.forEach(book => {
+            const div = document.createElement('div');
+            div.className = 'flex items-center justify-between gap-3 bg-gray-900/50 border border-gray-800 rounded-lg px-4 py-2.5';
+
+            const reasonLabel = book.reason === 'no-suitable-edition'
+                ? '<span class="text-[10px] bg-orange-900/40 border border-orange-800/40 text-orange-400 px-2 py-0.5 rounded-full font-bold">Sin edicion</span>'
+                : '<span class="text-[10px] bg-gray-800 border border-gray-700 text-gray-500 px-2 py-0.5 rounded-full font-bold">Sin paginas</span>';
+
+            div.innerHTML = `
+                <div class="min-w-0 flex-grow">
+                    <span class="text-sm text-gray-400 font-medium truncate block">${escapeHtml(book.title)}</span>
+                    <span class="text-xs text-gray-600">${escapeHtml(book.author)}</span>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                    ${reasonLabel}
+                    <span class="text-xs text-gray-600">${book.blogs.length} reto${book.blogs.length !== 1 ? 's' : ''}</span>
+                </div>
+            `;
+            fragment.appendChild(div);
+        });
+
+        excludedList.appendChild(fragment);
+    }
+
+    function showModal(book, blogById) {
+        if (!blogById) {
+            blogById = new Map((reportData.blogs || []).map(b => [b.id, b]));
+        }
+        modalTitle.textContent = book.title || 'Sin titulo';
+        modalAuthor.textContent = book.author || 'Autor desconocido';
+        modalCover.src = sanitizeUrl(book.coverImage) || '';
+        modalCover.alt = book.title || '';
+        modalPages.textContent = `${(book.pageCount || 0).toLocaleString()} pag.`;
+        modalSource.textContent = book.pageSource === 'edition-fallback' ? 'Edicion (min.)' : 'Libro';
+        modalRating.textContent = book.averageRating ? `${book.averageRating} ★` : '—';
+
+        modalBlogs.innerHTML = '';
+        (book.coversBlogs || []).forEach(blogId => {
+            const blogInfo = blogById.get(blogId);
+            const tag = document.createElement('a');
+            const url = sanitizeUrl(blogInfo?.url);
+            tag.href = url || '#';
+            if (url) { tag.target = '_blank'; }
+            tag.className = 'text-xs bg-gray-800 hover:bg-indigo-900/60 text-gray-400 hover:text-white px-2.5 py-1 rounded-md border border-gray-700 transition-colors';
+            tag.textContent = blogInfo?.title || blogId;
+            modalBlogs.appendChild(tag);
+        });
+
+        // Editions
+        modalEditions.innerHTML = '';
+        const editions = book.editions || [];
+        if (editions.length > 0) {
+            editions.forEach(edition => {
+                const div = document.createElement('div');
+                div.className = 'flex gap-3 bg-gray-800/50 p-2.5 rounded-lg border border-gray-800 hover:border-indigo-500/30 transition-colors';
+                const edCoverUrl = sanitizeUrl(edition.coverImage) || '';
+                const edLink = edition.link ? `https://www.goodreads.com${escapeHtml(edition.link)}` : '#';
+                div.innerHTML = `
+                    ${edCoverUrl ? `<img src="${escapeHtml(edCoverUrl)}" class="w-10 h-[60px] object-cover rounded shadow shadow-black/40 shrink-0" loading="lazy">` : '<div class="w-10 h-[60px] bg-gray-800 rounded shrink-0"></div>'}
+                    <div class="flex-grow flex flex-col justify-center min-w-0">
+                        <h4 class="text-xs font-semibold text-gray-300 line-clamp-1">${escapeHtml(edition.title)}</h4>
+                        <p class="text-[11px] text-gray-500 mt-0.5">${escapeHtml(edition.language || '?')} · ${escapeHtml(edition.format || '?')} · ${edition.pages || '?'} pag.</p>
+                        <a href="${escapeHtml(edLink)}" target="_blank" rel="noopener noreferrer" class="text-[10px] text-indigo-400 hover:text-indigo-300 underline mt-0.5 font-medium">Goodreads →</a>
+                    </div>
+                    <div class="flex items-center shrink-0">
+                        <span class="text-xs text-yellow-500 font-bold">${edition.averageRating ? `${edition.averageRating} ★` : '—'}</span>
+                    </div>
+                `;
+                const img = div.querySelector('img');
+                if (img) {
+                    img.addEventListener('error', function() { this.style.display = 'none'; });
+                }
+                modalEditions.appendChild(div);
+            });
+            modalEditionsContainer.classList.remove('hidden');
+        } else {
+            modalEditionsContainer.classList.add('hidden');
+        }
+
+        bookModal.classList.remove('hidden');
+        requestAnimationFrame(() => bookModal.classList.add('active'));
+        document.body.classList.add('modal-open');
+    }
+
+    // Exposed globally for inline onclick in the coverage table
+    window.showModalById = (bookId) => {
+        const book = (reportData.selected || []).find(b => b.id === bookId);
+        if (book) { showModal(book, null); }
+    };
+
+    function closeBookModal() {
+        bookModal.classList.remove('active');
+        setTimeout(() => bookModal.classList.add('hidden'), 250);
+        document.body.classList.remove('modal-open');
+    }
+
+    closeModal.addEventListener('click', closeBookModal);
+    bookModal.addEventListener('click', e => { if (e.target === bookModal) { closeBookModal();  }});
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && bookModal.classList.contains('active')) { closeBookModal(); }
+    });
+
+    excludedToggle.addEventListener('click', () => {
+        const isHidden = excludedList.classList.contains('hidden');
+        excludedList.classList.toggle('hidden', !isHidden);
+        excludedChevron.style.transform = isHidden ? 'rotate(90deg)' : '';
+    });
+
+    searchInput.addEventListener('input', () => {
+        clearTimeout(searchDebounce);
+        searchDebounce = setTimeout(() => renderSelectedGrid(searchInput.value), 200);
+    });
+</script>
+</body>
+</html>
