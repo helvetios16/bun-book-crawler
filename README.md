@@ -8,46 +8,138 @@ Scraper de Goodreads que extrae libros desde blogs, busca ediciones en español 
 bun install
 ```
 
-## Pipeline
+## CLI
 
-El comando principal. Scrapea multiples blogs, extrae libros y ediciones, y genera un reporte combinado mostrando que libros aparecen en varios blogs (ideal para cubrir multiples retos con un solo libro).
+El binario principal es `bukcraw`. Todos los comandos se ejecutan con:
 
 ```bash
-bun run pipeline -- <blogId1> <blogId2> [opciones]
+bun run src/cli.ts <comando> [opciones]
 ```
 
-### Opciones
+---
+
+## Comandos
+
+### `run` — Pipeline completo
+
+Scrapea uno o varios blogs, extrae libros y ediciones, y opcionalmente genera un reporte combinado.
+
+```bash
+bun run src/cli.ts run <blogId1> [blogId2...] [opciones]
+```
 
 | Flag | Default | Descripcion |
 |---|---|---|
 | `--blogs=<id1,id2,...>` | — | Blog IDs separados por coma (alternativa a args posicionales) |
 | `--language=<code>` | `spa` | Codigo de idioma (`spa`, `eng`, `por`, `ita`, `fra`, `deu`) |
-| `--format=<fmt>` | `ebook,Kindle Edition` | Formatos separados por coma (`hardcover`, `paperback`, `ebook`, `Kindle Edition`, `audiobook`) |
+| `--format=<fmt>` | `ebook,Kindle Edition` | Formatos separados por coma |
 | `--sort=<order>` | `num_ratings` | Orden de ediciones (`num_ratings`, `avg_rating`, `publish_date`) |
-| `--no-report` | — | Omite la generación del reporte (solo realiza el scraping) |
+| `--report` | — | Genera el reporte JSON al finalizar (desactivado por defecto) |
+| `--force` | — | Fuerza scraping completo ignorando validaciones de formato |
+| `--plain` | — | Desactiva la grilla animada y usa logs de texto plano |
 | `--output=<path>` | auto-generado | Nombre del archivo de salida |
 | `--help`, `-h` | — | Muestra ayuda |
 
-### Ejemplos
+#### Ejemplos
 
 ```bash
 # Dos blogs con defaults (español, ebook + Kindle)
-bun run pipeline -- 3046-8-new-books-recommended 2941-best-romance-2026
+bun run src/cli.ts run 3046-8-new-books-recommended 2941-best-romance-2026
 
-# Tres blogs, solo ebooks en ingles
-bun run pipeline -- --blogs=blog-1,blog-2,blog-3 --language=eng --format=ebook
+# Tres blogs, solo ebooks en ingles, con reporte
+bun run src/cli.ts run --blogs=blog-1,blog-2,blog-3 --language=eng --format=ebook --report
 
 # Con nombre de salida personalizado
-bun run pipeline -- blog-1 blog-2 --output=reto-mayo-2026.json
+bun run src/cli.ts run blog-1 blog-2 --report --output=reto-mayo-2026.json
+
+# Forzar rescraping sin grilla
+bun run src/cli.ts run blog-1 --force --plain
 ```
 
-### Que hace
+#### Que hace
 
 1. **Phase 1 — Scraping**: Para cada blog, extrae los libros mencionados, scrapea detalles y busca ediciones con los filtros dados.
-2. **Phase 2 — Reporte**: Cruza los datos en la base de datos, deduplica libros por titulo+autor, y genera un JSON con las relaciones.
-3. **Output**: Muestra un resumen con los libros que aparecen en multiples blogs ("best picks") y cuantas ediciones tiene cada uno.
+2. **Phase 2 — Reporte** *(solo con `--report`)*: Cruza los datos en la base de datos, deduplica libros por titulo+autor, y genera un JSON con las relaciones.
+3. **Output**: Muestra un resumen en pantalla; el JSON se guarda en `.reports/` si `--report` esta activo.
 
-### Formato de salida
+---
+
+### `check` — Verificacion rapida
+
+Verifica disponibilidad de ediciones sin scrapear datos completos. Util para detectar si un blog ya tiene resultados en la base de datos.
+
+```bash
+bun run src/cli.ts check <blogId1> [blogId2...] [opciones]
+```
+
+Acepta `--language`, `--format` y `--plain`.
+
+---
+
+### `report` — Reporte desde la DB
+
+Genera el reporte de relaciones cruzadas usando los datos ya existentes en la base de datos, sin hacer scraping.
+
+```bash
+bun run src/cli.ts report [opciones]
+```
+
+| Flag | Descripcion |
+|---|---|
+| `--language=<code>` | Filtrar ediciones por idioma |
+| `--blogs=<ids>` | IDs de blogs separados por coma |
+| `--sort=<type>` | Orden del picker de blogs (`date`, `name`, `id`) |
+| `--output=<path>` | Nombre del archivo de salida |
+
+---
+
+### `set-cover` — Optimizacion de lectura
+
+Calcula que libros leer para cubrir todos los retos de lectura seleccionados con la menor cantidad de paginas posible.
+
+```bash
+bun run src/cli.ts set-cover [opciones]
+```
+
+| Flag | Default | Descripcion |
+|---|---|---|
+| `--language=<code>` | `spa` | Codigo de idioma |
+| `--format=<fmt>` | `ebook,Kindle Edition` | Formatos separados por coma |
+| `--blogs=<ids>` | — | IDs de blogs separados por coma |
+| `--sort=<type>` | `date` | Orden del picker de blogs (`date`, `name`, `id`) |
+| `--algorithm=<algo>` | `greedy` | Algoritmo: `greedy` (rapido, aproximado) o `exact` (DP optimo, max 20 blogs) |
+| `--output=<path>` | — | Nombre del archivo de salida |
+
+Abre `set-cover.html` en el navegador para visualizar los resultados de forma interactiva.
+
+---
+
+### `cache:clear` — Limpiar cache
+
+```bash
+bun run src/cli.ts cache:clear
+```
+
+---
+
+### Gestion de base de datos
+
+```bash
+# Borra todo el contenido de la base de datos
+bun run src/cli.ts db:reset [--force]
+
+# Busca y borra libros junto a sus ediciones y referencias
+bun run src/cli.ts db:delete-book [--force]
+
+# Selecciona y borra blogs junto a sus libros exclusivos
+bun run src/cli.ts db:delete-blog [--force]
+```
+
+`--force` omite la confirmacion interactiva en todos los comandos de borrado.
+
+---
+
+## Formato de salida (`run --report` / `report`)
 
 ```json
 {
@@ -73,25 +165,34 @@ bun run pipeline -- blog-1 blog-2 --output=reto-mayo-2026.json
 }
 ```
 
-## Scripts individuales
+## Reportes visuales
 
-Si necesitas ejecutar pasos por separado:
+- **`report.html`** — Abre en el navegador y arrastra un JSON de `.reports/` para ver los libros con portadas, ratings y filtros interactivos.
+- **`set-cover.html`** — Visor interactivo para los resultados del comando `set-cover`.
+
+Todos los reportes generados se guardan en `.reports/`.
+
+## Scripts directos
+
+Si necesitas ejecutar pasos por separado sin la CLI:
 
 | Script | Descripcion |
 |---|---|
-| `bun run scripts/cli/workflow-blog-to-editions.ts --blogId=<id>` | Scrapea un solo blog con sus ediciones |
-| `bun run scripts/cli/report-books-relations.ts` | Genera reporte desde la DB (seleccion interactiva de blogs) |
-| `bun run scripts/cli/create-session.ts` | Crea sesion de browser manualmente |
+| `bun run scripts/cli/workflow-blog-to-editions.ts --blogId=<id>` | Scrapea un solo blog con sus ediciones (legacy) |
 | `bun run scripts/db/export.ts --format=csv` | Exporta libros a CSV/JSON |
-
-## Reporte visual
-
-Abre `report.html` en el navegador y arrastra un JSON de `.reports/` para ver los libros con portadas, ratings y filtros interactivos. Todos los reportes generados se guardan en `.reports/`.
 
 ## Tests
 
 ```bash
 bun test
+```
+
+## Lint / Format
+
+```bash
+bun run lint      # biome lint --write
+bun run format    # biome format --write
+bun run check     # biome check --write (lint + format)
 ```
 
 ## Tech stack
