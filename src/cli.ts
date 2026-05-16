@@ -40,6 +40,7 @@ cli
   .option("--report", "Generar reporte final (desactivado por defecto)")
   .option("--output <path>", "Ruta del archivo de salida")
   .option("--force", "Forzar scraping completo ignorando validaciones de formato")
+  .option("--plain", "Desactivar la grilla animada y usar logs de texto plano")
   .action((blogs, options) => {
     const args: string[] = [];
     if (blogs.length > 0) {
@@ -56,6 +57,9 @@ cli
     }
     if (options.force) {
       args.push("--force");
+    }
+    if (options.plain) {
+      args.push("--plain");
     }
     if (options.report) {
       args.push("--report");
@@ -74,6 +78,7 @@ cli
   .option("--format <fmt>", "Formato (ebook, Kindle Edition, etc.)", {
     default: "ebook,Kindle Edition",
   })
+  .option("--plain", "Desactivar la grilla animada y usar logs de texto plano")
   .action((blogs, options) => {
     const args: string[] = ["--check-only"];
     if (blogs.length > 0) {
@@ -84,6 +89,9 @@ cli
     }
     if (options.format) {
       args.push(`--format=${options.format}`);
+    }
+    if (options.plain) {
+      args.push("--plain");
     }
 
     runScript("scripts/cli/pipeline.ts", args);

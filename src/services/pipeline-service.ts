@@ -1,12 +1,9 @@
 import type { DatabaseService } from "../core/database";
 import type { Book, BookFilterOptions, Edition } from "../types";
-import { ansi } from "../utils/logger";
-import { Progress } from "../utils/progress";
+import { NULL_REPORTER, type PipelineReporter } from "../utils/reporter";
 import type { BlogService } from "./blog-service";
 import type { BookService } from "./book-service";
 import type { EditionService } from "./edition-service";
-
-const c = ansi;
 
 export interface PipelineOptions {
   language: string;
@@ -46,6 +43,7 @@ export class PipelineService {
     private readonly bookService: BookService,
     private readonly editionService: EditionService,
     private readonly dbService: DatabaseService,
+    private readonly reporter: PipelineReporter = NULL_REPORTER,
   ) {}
 
   /**
@@ -56,23 +54,28 @@ export class PipelineService {
 
     const blogData = await this.blogService.scrapeBlog(blogId);
     if (!blogData) {
+      this.reporter.onBlogTitle(blogId);
+      this.reporter.onBlogBooks([]);
+      this.reporter.onBlogEnd({ ok: 0, skipped: 0, errors: 1 });
       return {
         books: [],
         errors: [{ id: blogId, title: "Unknown", error: "Failed to scrape blog" }],
       };
     }
 
-    console.log(`\n${c.heading(`Blog: ${blogData.title || blogId}`)}`);
+    this.reporter.onBlogTitle(blogData.title || blogId);
 
     const books: Book[] = blogData.mentionedBooks || [];
-    console.log(c.success(`  ${books.length} books found`));
+    this.reporter.onBlogBooks(books.map((b) => ({ id: b.id, title: b.title })));
 
-    const progress = new Progress(books.length);
     const processedBooks: Book[] = [];
     const errors: PipelineError[] = [];
+    let okCount = 0;
+    let skippedCount = 0;
 
     for (const bookRef of books) {
-      progress.tick(bookRef.title || bookRef.id);
+      const bookTitle = bookRef.title || bookRef.id;
+      this.reporter.onBookStart(bookRef.id, bookTitle);
 
       try {
         const bookDetails = await this.bookService.scrapeBook(bookRef.id);
@@ -81,6 +84,7 @@ export class PipelineService {
         }
 
         if (bookDetails.legacyId) {
+          this.reporter.onBookStage(bookRef.id, "filters");
           const filters = await this.editionService.scrapeEditionsFilters(bookDetails.legacyId);
 
           if (filters && !force) {
@@ -96,20 +100,21 @@ export class PipelineService {
               const reason = !hasLanguage
                 ? `Language '${language}' not found`
                 : `Format(s) '${formats.join(",")}' not found`;
-              console.log(`  ${c.warn("Skipped:")} ${c.gray(reason)}`);
+              this.reporter.onBookDone(bookRef.id, "skipped", reason);
+              skippedCount++;
               continue;
             }
 
             if (checkOnly) {
-              console.log(
-                `  ${c.success("Available:")} ${c.gray(`${language} | ${availableFormats.join(",")}`)}`,
-              );
+              this.reporter.onBookDone(bookRef.id, "done");
               processedBooks.push(bookDetails);
+              okCount++;
               continue;
             }
           }
 
           if (!checkOnly) {
+            this.reporter.onBookStage(bookRef.id, "editions");
             const formatsToProcess = formats.length > 0 ? formats : [undefined];
             for (const format of formatsToProcess) {
               const filterOptions: BookFilterOptions = {
@@ -123,9 +128,11 @@ export class PipelineService {
         }
 
         processedBooks.push(bookDetails);
+        this.reporter.onBookDone(bookRef.id, "done");
+        okCount++;
       } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : String(err);
-        console.warn(`  ${c.warn("Error:")} ${c.gray(errorMessage)}`);
+        this.reporter.onBookDone(bookRef.id, "error", errorMessage);
         errors.push({
           id: bookRef.id,
           title: bookRef.title || "Unknown",
@@ -134,6 +141,7 @@ export class PipelineService {
       }
     }
 
+    this.reporter.onBlogEnd({ ok: okCount, skipped: skippedCount, errors: errors.length });
     return { books: processedBooks, errors };
   }
 

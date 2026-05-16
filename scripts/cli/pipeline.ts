@@ -3,7 +3,10 @@ import { BrowserClient } from "../../src/core/browser-client";
 import { DatabaseService } from "../../src/core/database";
 import { GoodreadsService } from "../../src/services/goodreads-service";
 import { type PipelineError, PipelineService } from "../../src/services/pipeline-service";
+import { GridReporter } from "../../src/utils/grid-reporter";
 import { ansi } from "../../src/utils/logger";
+import { PlainReporter } from "../../src/utils/plain-reporter";
+import type { PipelineReporter } from "../../src/utils/reporter";
 
 const c = ansi;
 
@@ -18,6 +21,7 @@ interface PipelineArgs {
   enableReport: boolean;
   checkOnly: boolean;
   force: boolean;
+  plain: boolean;
 }
 
 // ── Args parsing ──
@@ -33,6 +37,7 @@ function parseArgs(): PipelineArgs | null {
     enableReport: false,
     checkOnly: false,
     force: false,
+    plain: false,
   };
 
   for (const arg of args) {
@@ -45,6 +50,8 @@ function parseArgs(): PipelineArgs | null {
       params.checkOnly = true;
     } else if (arg === "--force") {
       params.force = true;
+    } else if (arg === "--plain") {
+      params.plain = true;
     } else if (arg.startsWith("--blogs=")) {
       const value = arg.split("=").slice(1).join("=");
       params.blogIds = value
@@ -90,6 +97,7 @@ ${c.heading("Options:")}
   --sort=<order>         Edition sort order (default: ${c.info("num_ratings")})
   --report               Generate final report
   --force                Force full scrape (ignore format checks)
+  --plain                Disable grid UI, use plain log output
   --output=<path>        Output filename (default: auto-generated)
   --help, -h             Show this help
 `);
@@ -103,16 +111,17 @@ async function main(): Promise<void> {
     return;
   }
 
-  const { blogIds, language, formats, sort, output, enableReport, checkOnly, force } = args;
+  const { blogIds, language, formats, sort, output, enableReport, checkOnly, force, plain } = args;
 
   if (blogIds.length === 0) {
     console.error(c.error("Error: At least one blog ID is required."));
     process.exit(1);
   }
 
-  console.log(
-    `${c.heading(checkOnly ? "Check Mode" : "Pipeline Mode")} ${c.gray(`| ${blogIds.length} blog(s) | lang=${language} formats=${formats.join(",")}`)}`,
-  );
+  const useGrid = !plain && process.stdout.isTTY && process.env.CI !== "true";
+  const reporter: PipelineReporter = useGrid ? new GridReporter() : new PlainReporter();
+
+  reporter.onPipelineStart(blogIds, { language, formats, checkOnly });
 
   const browserClient = new BrowserClient();
   const dbService = new DatabaseService();
@@ -125,14 +134,11 @@ async function main(): Promise<void> {
       goodreadsService.book,
       goodreadsService.edition,
       dbService,
+      reporter,
     );
 
-    if (!checkOnly) {
-      console.log(`\n${c.heading("=== Phase 1: Scraping blogs ===")}`);
-    }
-
     for (const [i, blogId] of blogIds.entries()) {
-      console.log(c.gray(`\n[${i + 1}/${blogIds.length}]`));
+      reporter.onBlogStart(i, blogIds.length, blogId);
       const { errors } = await pipelineService.processBlog(blogId, {
         language,
         formats,
@@ -144,6 +150,8 @@ async function main(): Promise<void> {
         allErrors.push({ blogId, ...err });
       }
     }
+
+    reporter.onPipelineEnd({ errors: allErrors });
 
     if (checkOnly) {
       console.log(`\n${c.success("Check completed.")}`);
@@ -181,6 +189,7 @@ async function main(): Promise<void> {
       }
     }
   } catch (error: unknown) {
+    reporter.onPipelineEnd({ errors: allErrors });
     const message = error instanceof Error ? error.message : String(error);
     console.error(`\n${c.error("Fatal error:")} ${message}`);
   } finally {

@@ -62,6 +62,12 @@ export class Logger {
       return;
     }
 
+    if (_loggerSink) {
+      const argsStr = args.length > 0 ? ` ${args.map((a) => String(a)).join(" ")}` : "";
+      _loggerSink(level, this.prefix, message + argsStr);
+      return;
+    }
+
     const style = LEVEL_STYLES[level];
     const time = new Date().toISOString().slice(11, 19);
     const prefixStr = this.prefix ? `${ANSI.magenta}[${this.prefix}]${ANSI.reset} ` : "";
@@ -77,6 +83,12 @@ export class Logger {
   }
 }
 
+export type LoggerSink = (level: LogLevel, source: string, message: string) => void;
+let _loggerSink: LoggerSink | null = null;
+export function setLoggerSink(s: LoggerSink | null): void {
+  _loggerSink = s;
+}
+
 /** Shared ANSI helpers for CLI scripts — each wraps text with color + reset */
 export const ansi = {
   reset: ANSI.reset,
@@ -87,4 +99,9 @@ export const ansi = {
   info: (text: string): string => `${ANSI.cyan}${text}${ANSI.reset}`,
   gray: (text: string): string => `${ANSI.gray}${text}${ANSI.reset}`,
   dim: (text: string): string => `${ANSI.dim}${text}${ANSI.reset}`,
+  bold: (text: string): string => `${ANSI.bold}${text}${ANSI.reset}`,
+  green: (text: string): string => `${ANSI.green}${text}${ANSI.reset}`,
+  red: (text: string): string => `${ANSI.red}${text}${ANSI.reset}`,
+  cyan: (text: string): string => `${ANSI.cyan}${text}${ANSI.reset}`,
+  yellow: (text: string): string => `${ANSI.yellow}${text}${ANSI.reset}`,
 } as const;
