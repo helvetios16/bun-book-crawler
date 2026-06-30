@@ -16,12 +16,13 @@ const ANSI = {
   reset: "\x1b[0m",
   dim: "\x1b[2m",
   bold: "\x1b[1m",
-  red: "\x1b[31m",
-  yellow: "\x1b[33m",
-  cyan: "\x1b[36m",
-  green: "\x1b[32m",
-  magenta: "\x1b[35m",
-  gray: "\x1b[90m",
+  red: "\x1b[91m",
+  yellow: "\x1b[93m",
+  cyan: "\x1b[96m",
+  green: "\x1b[92m",
+  magenta: "\x1b[95m",
+  gray: "\x1b[37m",
+  white: "\x1b[97m",
 } as const;
 
 const LEVEL_STYLES: Record<LogLevel, { color: string; label: string }> = {
@@ -71,7 +72,7 @@ export class Logger {
     const style = LEVEL_STYLES[level];
     const time = new Date().toISOString().slice(11, 19);
     const prefixStr = this.prefix ? `${ANSI.magenta}[${this.prefix}]${ANSI.reset} ` : "";
-    const formatted = `${ANSI.dim}${time}${ANSI.reset} ${style.color}${style.label}${ANSI.reset} ${prefixStr}${message}`;
+    const formatted = `${ANSI.gray}${time}${ANSI.reset} ${style.color}${style.label}${ANSI.reset} ${prefixStr}${ANSI.white}${message}${ANSI.reset}`;
 
     if (level === "error") {
       console.error(formatted, ...args);
@@ -98,6 +99,7 @@ export const ansi = {
   error: (text: string): string => `${ANSI.red}${text}${ANSI.reset}`,
   info: (text: string): string => `${ANSI.cyan}${text}${ANSI.reset}`,
   gray: (text: string): string => `${ANSI.gray}${text}${ANSI.reset}`,
+  white: (text: string): string => `${ANSI.white}${text}${ANSI.reset}`,
   dim: (text: string): string => `${ANSI.dim}${text}${ANSI.reset}`,
   bold: (text: string): string => `${ANSI.bold}${text}${ANSI.reset}`,
   green: (text: string): string => `${ANSI.green}${text}${ANSI.reset}`,

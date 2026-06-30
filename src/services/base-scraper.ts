@@ -1,12 +1,19 @@
 import type { Page } from "puppeteer";
-import { GOODREADS_URL, NAVIGATION_TIMEOUT_MS, SESSION_TTL_MINUTES } from "../config/constants";
+import {
+  GOODREADS_URL,
+  INITIAL_RETRY_DELAY_MS,
+  MAX_RETRIES,
+  NAVIGATION_TIMEOUT_MS,
+  RETRY_BACKOFF_MULTIPLIER,
+  SESSION_TTL_MINUTES,
+} from "../config/constants";
 import type { BrowserClient } from "../core/browser-client";
 import { CacheManager } from "../core/cache-manager";
 import { DatabaseService } from "../core/database";
 import { HttpClient } from "../core/http-client";
 import { RateLimiter } from "../core/rate-limiter";
 import { Logger } from "../utils/logger";
-import { getErrorMessage, hashUrl } from "../utils/util";
+import { delay, getErrorMessage, hashUrl } from "../utils/util";
 
 const log = new Logger("BaseScraperService");
 
@@ -18,11 +25,13 @@ export interface ScraperStats {
 }
 
 export abstract class BaseScraperService {
-  protected page: Page | null = null;
   protected http: HttpClient | null = null;
   protected readonly cache = new CacheManager();
   protected readonly db = new DatabaseService();
   protected readonly rateLimiter = new RateLimiter();
+
+  /** In-flight session initialization, shared so concurrent fetches log in only once. */
+  private sessionInitPromise: Promise<void> | null = null;
 
   protected stats: ScraperStats = {
     httpSuccess: 0,
@@ -34,6 +43,18 @@ export abstract class BaseScraperService {
   constructor(protected readonly browserClient?: BrowserClient) {}
 
   public async initSession(): Promise<void> {
+    if (this.http) {
+      return;
+    }
+    if (!this.sessionInitPromise) {
+      this.sessionInitPromise = this.createSession().finally(() => {
+        this.sessionInitPromise = null;
+      });
+    }
+    return this.sessionInitPromise;
+  }
+
+  private async createSession(): Promise<void> {
     const latestSession = this.db.getLatestSession();
 
     if (latestSession && this.isSessionFresh(latestSession.createdAt)) {
@@ -44,27 +65,70 @@ export abstract class BaseScraperService {
 
     log.info("Session expired or missing. Fetching new cookies...");
 
+    if (!this.browserClient) {
+      throw new Error("BrowserClient required to initialize a session.");
+    }
+
+    // A single transient block/redirect/timeout from Goodreads must not abort the
+    // whole pipeline, so retry the cookie acquisition with exponential backoff.
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const cookiesStr = await this.acquireSessionCookies();
+        this.db.saveSession(cookiesStr);
+        this.http = new HttpClient(cookiesStr);
+        log.info("New session initialized.");
+        return;
+      } catch (error: unknown) {
+        lastError = error;
+        log.warn(`Session attempt ${attempt}/${MAX_RETRIES} failed: ${getErrorMessage(error)}`);
+        if (attempt < MAX_RETRIES) {
+          await delay(INITIAL_RETRY_DELAY_MS * RETRY_BACKOFF_MULTIPLIER ** (attempt - 1));
+        }
+      }
+    }
+
+    // Surface the underlying cause: callers (and the grid reporter) only print the
+    // thrown message, so the real reason must travel with it.
+    log.error("Critical session error:", getErrorMessage(lastError));
+    throw new Error(
+      `SESSION_INIT_FAILURE: Could not obtain a valid Goodreads session after ${MAX_RETRIES} attempts. Cause: ${getErrorMessage(lastError)}`,
+    );
+  }
+
+  /**
+   * Opens a throwaway Puppeteer page on Goodreads and returns its cookie header.
+   * Rejects on block/captcha/login redirects so a poisoned session is never saved.
+   */
+  private async acquireSessionCookies(): Promise<string> {
+    if (!this.browserClient) {
+      throw new Error("BrowserClient required to initialize a session.");
+    }
+
+    const page = await this.browserClient.launch();
+    page.setDefaultNavigationTimeout(NAVIGATION_TIMEOUT_MS);
+
     try {
-      await this.ensureBrowserPage();
-      if (!this.page) {
-        throw new Error("Failed to start browser.");
+      const response = await page.goto(GOODREADS_URL, { waitUntil: "domcontentloaded" });
+      const status = response?.status();
+      if (status === 403 || status === 429) {
+        throw new Error(`Goodreads blocked the session request (Status: ${status}).`);
       }
 
-      await this.page.goto(GOODREADS_URL, { waitUntil: "domcontentloaded" });
+      const currentUrl = page.url();
+      if (currentUrl.includes("/user/sign_in") || currentUrl.includes("captcha")) {
+        throw new Error("Goodreads redirected to login/captcha during session init.");
+      }
 
-      const cookiesArr = await this.page.cookies();
+      const cookiesArr = await page.cookies();
       const cookiesStr = cookiesArr.map((c) => `${c.name}=${c.value}`).join("; ");
-
       if (!cookiesStr) {
         throw new Error("No cookies obtained from browser.");
       }
 
-      this.db.saveSession(cookiesStr);
-      this.http = new HttpClient(cookiesStr);
-      log.info("New session initialized.");
-    } catch (error: unknown) {
-      log.error("Critical session error:", getErrorMessage(error));
-      throw new Error("SESSION_INIT_FAILURE: Could not obtain a valid Goodreads session.");
+      return cookiesStr;
+    } finally {
+      await page.close().catch(() => {});
     }
   }
 
@@ -127,13 +191,7 @@ export abstract class BaseScraperService {
     }
 
     this.stats.browserFallback++;
-    await this.ensureBrowserPage();
-    if (!this.page) {
-      throw new Error("Failed to initialize Puppeteer for fallback.");
-    }
-
-    await this.navigateTo(url);
-    const content = await this.page.content();
+    const content = await this.fetchViaBrowser(url);
     return { content, method: "browser" };
   }
 
@@ -151,22 +209,29 @@ export abstract class BaseScraperService {
     } catch {}
   }
 
-  protected async ensureBrowserPage(): Promise<void> {
-    if (this.page) {
-      return;
-    }
+  /**
+   * Fetches a URL through a dedicated Puppeteer page. A fresh page is created per
+   * call and closed afterwards, so concurrent browser fallbacks never share (and
+   * detach) the same frame.
+   */
+  protected async fetchViaBrowser(url: string): Promise<string> {
     if (!this.browserClient) {
-      throw new Error("BrowserClient or Page required for Puppeteer fallback.");
+      throw new Error("BrowserClient required for Puppeteer fallback.");
     }
-    this.page = await this.browserClient.launch();
-    this.page.setDefaultNavigationTimeout(NAVIGATION_TIMEOUT_MS);
+
+    const page = await this.browserClient.launch();
+    page.setDefaultNavigationTimeout(NAVIGATION_TIMEOUT_MS);
+
+    try {
+      await this.navigateTo(page, url);
+      return await page.content();
+    } finally {
+      await page.close().catch(() => {});
+    }
   }
 
-  protected async navigateTo(url: string): Promise<void> {
-    if (!this.page) {
-      throw new Error("Page instance is missing.");
-    }
-    const response = await this.page.goto(url, { waitUntil: "domcontentloaded" });
+  protected async navigateTo(page: Page, url: string): Promise<void> {
+    const response = await page.goto(url, { waitUntil: "domcontentloaded" });
     if (!response) {
       throw new Error("No response received from browser.");
     }
@@ -178,11 +243,11 @@ export abstract class BaseScraperService {
       throw new Error(`Access denied or rate limited (Status: ${status}).`);
     }
 
-    const currentUrl = this.page.url();
+    const currentUrl = page.url();
     if (currentUrl.includes("/user/sign_in") || currentUrl.includes("captcha")) {
       throw new Error("Redirected to login or captcha page. Manual intervention required.");
     }
-    await this.page.waitForSelector("body");
+    await page.waitForSelector("body");
   }
 
   public getTelemetry(): ScraperStats {

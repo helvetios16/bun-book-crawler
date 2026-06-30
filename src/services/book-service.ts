@@ -1,4 +1,3 @@
-import type { ElementHandle } from "puppeteer";
 import { BOOK_URL, CACHE_TTL_DAYS, GOODREADS_URL } from "../config/constants";
 import type { Book } from "../types";
 import { Logger } from "../utils/logger";
@@ -54,16 +53,9 @@ export class BookService extends BaseScraperService {
       return dbBook;
     }
 
-    let bookData: Book | null = null;
-
-    if (method === "http" || method === "not-modified") {
-      bookData = await this.processNextDataFromHtml(content, url);
-    } else if (this.page) {
-      const nextDataElement = await this.page.$("#__NEXT_DATA__");
-      if (nextDataElement) {
-        bookData = await this.processNextDataFromElement(nextDataElement, url);
-      }
-    }
+    // `content` is already the fully rendered HTML (browser fallback uses
+    // page.content()), so __NEXT_DATA__ can be extracted the same way for every method.
+    const bookData = await this.processNextDataFromHtml(content, url);
 
     await this.cache.save({ url, content, force: false, extension: ".html" });
     return bookData;
@@ -89,14 +81,6 @@ export class BookService extends BaseScraperService {
   private async processNextDataFromHtml(html: string, url: string): Promise<Book | null> {
     const match = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
     return this.handleNextDataJson(match?.[1] ?? null, url);
-  }
-
-  private async processNextDataFromElement(
-    element: ElementHandle,
-    url: string,
-  ): Promise<Book | null> {
-    const nextData = await this.page?.evaluate((el) => el.textContent, element);
-    return this.handleNextDataJson(nextData ?? null, url);
   }
 
   private async handleNextDataJson(jsonStr: string | null, url: string): Promise<Book | null> {

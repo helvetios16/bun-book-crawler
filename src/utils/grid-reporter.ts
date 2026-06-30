@@ -87,10 +87,40 @@ export class GridReporter implements PipelineReporter {
   private renderTimer: ReturnType<typeof setTimeout> | null = null;
   private cleanedUp = false;
 
+  /** Number of times 'q' has been pressed; quits after QUIT_PRESSES_REQUIRED. */
+  private quitPresses = 0;
+  private readonly QUIT_PRESSES_REQUIRED = 3;
+  private rawModeEnabled = false;
+
   private readonly resizeHandler = () => this.scheduleRender();
   private readonly sigintHandler = () => {
     this.cleanup();
     process.exit(130);
+  };
+
+  private readonly keyHandler = (data: Buffer) => {
+    const key = data.toString();
+    // Ctrl+C — raw mode swallows SIGINT, so handle it here too.
+    if (key === "\x03") {
+      this.cleanup();
+      process.exit(130);
+      return;
+    }
+    if (key === "q" || key === "Q") {
+      this.quitPresses++;
+      const remaining = this.QUIT_PRESSES_REQUIRED - this.quitPresses;
+      if (remaining <= 0) {
+        this.pushLog("warn", "bukcraw", "Saliendo...");
+        this.cleanup();
+        process.exit(130);
+        return;
+      }
+      this.pushLog(
+        "warn",
+        "bukcraw",
+        `Presiona 'q' ${remaining} ${remaining === 1 ? "vez" : "veces"} más para salir`,
+      );
+    }
   };
 
   onPipelineStart(
@@ -108,6 +138,16 @@ export class GridReporter implements PipelineReporter {
     process.on("SIGINT", this.sigintHandler);
     process.on("exit", () => process.stdout.write("\x1b[?25h"));
     process.stdout.on("resize", this.resizeHandler);
+
+    // Listen for 'q' (×3) to quit safely without killing the run mid-write.
+    if (process.stdin.isTTY) {
+      process.stdin.setRawMode(true);
+      this.rawModeEnabled = true;
+      process.stdin.resume();
+      process.stdin.on("data", this.keyHandler);
+      // Don't keep the event loop alive just for stdin once the pipeline finishes.
+      process.stdin.unref();
+    }
   }
 
   onBlogStart(index: number, total: number, blogId: string): void {
@@ -230,6 +270,14 @@ export class GridReporter implements PipelineReporter {
     setLoggerSink(null);
     process.stdout.off("resize", this.resizeHandler);
     process.removeListener("SIGINT", this.sigintHandler);
+    if (this.rawModeEnabled) {
+      process.stdin.off("data", this.keyHandler);
+      if (process.stdin.isTTY) {
+        process.stdin.setRawMode(false);
+      }
+      process.stdin.pause();
+      this.rawModeEnabled = false;
+    }
     process.stdout.write("\x1b[?25h");
   }
 
@@ -244,7 +292,7 @@ export class GridReporter implements PipelineReporter {
             ? ansi.dim("DBG")
             : ansi.info("INF");
     const src = source.slice(0, 14).padEnd(14);
-    this.logLines.push(`${ansi.dim(time)}  ${lvlTag}  ${ansi.gray(src)}  ${message}`);
+    this.logLines.push(`${ansi.gray(time)}  ${lvlTag}  ${ansi.cyan(src)}  ${ansi.white(message)}`);
     if (this.logLines.length > this.LOG_MAX) {
       this.logLines.shift();
     }
@@ -352,7 +400,7 @@ export class GridReporter implements PipelineReporter {
         rows.push(truncVis(l, cols));
       }
     }
-    rows.push(sep());
+    rows.push(sep(`presiona ${ansi.bold("q")} ×${this.QUIT_PRESSES_REQUIRED} para salir`));
     rows.push("");
 
     // Pad short log sections so linesRendered stays stable between renders
@@ -374,7 +422,7 @@ export class GridReporter implements PipelineReporter {
       case "done":
         return ansi.success("▣");
       case "skipped":
-        return ansi.warn("◌");
+        return ansi.warn("▥");
       case "error":
         return ansi.error("✕");
     }
