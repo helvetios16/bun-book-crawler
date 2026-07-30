@@ -67,6 +67,15 @@ export const NAVIGATION_TIMEOUT_MS = 60000;
 /** How many days the file-based cache looks back when searching for cached content */
 export const FILE_CACHE_LOOKBACK_DAYS = 3;
 
+/**
+ * Goodreads gates first visits (and occasionally regular page loads) behind an
+ * AWS WAF JS challenge (HTTP 202, empty body) that resolves after a few seconds
+ * of client-side execution and then self-triggers a reload. Session init polls
+ * for cookies during that window; regular navigations wait for the reload.
+ */
+export const WAF_CHALLENGE_TIMEOUT_MS = 10000;
+export const SESSION_COOKIE_POLL_INTERVAL_MS = 500;
+
 // --- HTTP Retry Configuration ---
 
 /** Maximum number of retry attempts for failed HTTP requests */

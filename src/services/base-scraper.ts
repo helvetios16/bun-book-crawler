@@ -5,7 +5,9 @@ import {
   MAX_RETRIES,
   NAVIGATION_TIMEOUT_MS,
   RETRY_BACKOFF_MULTIPLIER,
+  SESSION_COOKIE_POLL_INTERVAL_MS,
   SESSION_TTL_MINUTES,
+  WAF_CHALLENGE_TIMEOUT_MS,
 } from "../config/constants";
 import type { BrowserClient } from "../core/browser-client";
 import { CacheManager } from "../core/cache-manager";
@@ -120,8 +122,7 @@ export abstract class BaseScraperService {
         throw new Error("Goodreads redirected to login/captcha during session init.");
       }
 
-      const cookiesArr = await page.cookies();
-      const cookiesStr = cookiesArr.map((c) => `${c.name}=${c.value}`).join("; ");
+      const cookiesStr = await this.waitForCookies(page);
       if (!cookiesStr) {
         throw new Error("No cookies obtained from browser.");
       }
@@ -130,6 +131,23 @@ export abstract class BaseScraperService {
     } finally {
       await page.close().catch(() => {});
     }
+  }
+
+  /**
+   * Goodreads responds to the first hit with an AWS WAF JS challenge (HTTP 202,
+   * empty body) and only sets cookies once that challenge script finishes running,
+   * which happens after `domcontentloaded`. Poll instead of reading cookies once.
+   */
+  private async waitForCookies(page: Page): Promise<string> {
+    const deadline = Date.now() + WAF_CHALLENGE_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      const cookiesArr = await page.cookies();
+      if (cookiesArr.length > 0) {
+        return cookiesArr.map((c) => `${c.name}=${c.value}`).join("; ");
+      }
+      await delay(SESSION_COOKIE_POLL_INTERVAL_MS);
+    }
+    return "";
   }
 
   private isSessionFresh(createdAt: string): boolean {
@@ -191,8 +209,47 @@ export abstract class BaseScraperService {
     }
 
     this.stats.browserFallback++;
-    const content = await this.fetchViaBrowser(url);
+    const content = await this.fetchViaBrowserWithRetry(url, validate);
     return { content, method: "browser" };
+  }
+
+  /**
+   * The Puppeteer fallback is the last line of defense, so a single transient
+   * WAF challenge/captcha page must not permanently fail the item — retry with
+   * backoff the same way HttpClient.get() and session init already do.
+   *
+   * Real blocks are already caught inside navigateTo (403/429 status, redirects
+   * to sign-in/captcha, unresolved WAF challenge). HttpClient.isBlocked() is not
+   * used here: it substring-matches raw HTTP bodies for words like "robot", and
+   * fully rendered Goodreads pages legitimately contain that word (e.g. the
+   * standard `<meta name="robots">` tag), which made it flag real pages as
+   * blocked. `validate` is the reliable positive-content signal instead.
+   */
+  private async fetchViaBrowserWithRetry(
+    url: string,
+    validate?: (content: string) => boolean,
+  ): Promise<string> {
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const content = await this.fetchViaBrowser(url);
+        if (validate && !validate(content)) {
+          throw new Error("Browser fallback returned content that failed validation.");
+        }
+        return content;
+      } catch (error: unknown) {
+        lastError = error;
+        log.warn(
+          `Browser fallback attempt ${attempt}/${MAX_RETRIES} failed for ${url}: ${getErrorMessage(error)}`,
+        );
+        if (attempt < MAX_RETRIES) {
+          await delay(INITIAL_RETRY_DELAY_MS * RETRY_BACKOFF_MULTIPLIER ** (attempt - 1));
+        }
+      }
+    }
+    throw new Error(
+      `Browser fallback failed for ${url} after ${MAX_RETRIES} attempts: ${getErrorMessage(lastError)}`,
+    );
   }
 
   private async saveMetadataFromUrl(url: string): Promise<void> {
@@ -231,10 +288,24 @@ export abstract class BaseScraperService {
   }
 
   protected async navigateTo(page: Page, url: string): Promise<void> {
-    const response = await page.goto(url, { waitUntil: "domcontentloaded" });
+    let response = await page.goto(url, { waitUntil: "domcontentloaded" });
     if (!response) {
       throw new Error("No response received from browser.");
     }
+
+    if (response.status() === 202) {
+      // AWS WAF JS challenge: the page reloads itself once the challenge script
+      // finishes, destroying this navigation's execution context. Reading
+      // page.content() before that reload just captures the empty challenge
+      // shell, so wait for the reload instead (mirrors waitForCookies above).
+      response = await page
+        .waitForNavigation({ waitUntil: "domcontentloaded", timeout: WAF_CHALLENGE_TIMEOUT_MS })
+        .catch(() => null);
+      if (!response) {
+        throw new Error("Goodreads WAF challenge did not resolve in time.");
+      }
+    }
+
     const status = response.status();
     if (status === 404) {
       return;
