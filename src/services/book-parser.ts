@@ -1,36 +1,8 @@
 import type { Book } from "../types";
-import type { GoodreadsNextData } from "../types/goodreads-schema";
+import { GoodreadsNextDataSchema } from "../types/goodreads-schema";
+import { Logger } from "../utils/logger";
 
-/**
- * Type guard to validate if the input is a valid GoodreadsNextData object.
- */
-function isValidNextData(data: unknown): data is GoodreadsNextData {
-  if (typeof data !== "object" || data === null) {
-    return false;
-  }
-
-  const hasProps = "props" in data && typeof (data as Record<string, unknown>).props === "object";
-  if (!hasProps) {
-    return false;
-  }
-
-  const props = (data as Record<string, unknown>).props as Record<string, unknown>;
-  if (props === null) {
-    return false;
-  }
-
-  const hasPageProps = "pageProps" in props && typeof props.pageProps === "object";
-  if (!hasPageProps) {
-    return false;
-  }
-
-  const pageProps = props.pageProps as Record<string, unknown>;
-  if (pageProps === null) {
-    return false;
-  }
-
-  return "apolloState" in pageProps && typeof pageProps.apolloState === "object";
-}
+const log = new Logger("BookParser");
 
 /**
  * Extracts book information from the raw Goodreads Next.js data.
@@ -38,16 +10,19 @@ function isValidNextData(data: unknown): data is GoodreadsNextData {
  * @returns A Book object if extraction is successful, or null otherwise.
  */
 export function parseBookData(jsonData: unknown): Book | null {
-  if (!isValidNextData(jsonData)) {
+  const result = GoodreadsNextDataSchema.safeParse(jsonData);
+  if (!result.success) {
+    // A schema failure here usually means Goodreads changed the shape of
+    // __NEXT_DATA__ — log the exact path/reason so it's actionable, not a silent null.
+    log.warn(
+      "__NEXT_DATA__ no coincide con el esquema esperado:",
+      result.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; "),
+    );
     return null;
   }
 
-  // Access the normalized Apollo state safely using the typed interface
-  const state = jsonData.props.pageProps.apolloState;
-
-  if (!state) {
-    return null;
-  }
+  // Access the normalized Apollo state safely using the typed schema
+  const state = result.data.props.pageProps.apolloState;
 
   // Helper to resolve references directly from the state map
   const resolve = (ref: string | undefined | null) => {
@@ -64,6 +39,7 @@ export function parseBookData(jsonData: unknown): Book | null {
   });
 
   if (!bookKey) {
+    log.warn("No se encontró ninguna entrada 'Book:' con title y titleComplete en apolloState");
     return null;
   }
 

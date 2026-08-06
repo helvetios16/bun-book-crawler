@@ -1,51 +1,61 @@
 /**
- * Interfaces representing the raw data structure from Goodreads (Next.js props).
+ * Zod schemas validating the raw data structure from Goodreads (Next.js props).
+ *
+ * Goodreads' `__NEXT_DATA__` payload is an unversioned, undocumented Apollo GraphQL
+ * cache dump. These schemas only pin down the fields bukcraw actually reads — every
+ * object uses `.passthrough()` so the thousands of unrelated fields in the Apollo
+ * graph don't cause validation failures. A failure here means Goodreads changed the
+ * shape of a field we depend on, which is exactly what we want to catch early instead
+ * of silently extracting `undefined`.
  */
+import { z } from "zod";
 
-export interface ApolloNode {
-  __ref?: string;
-  legacyId?: string;
-  title?: string;
-  titleComplete?: string;
-  description?: string;
-  primaryContributorEdge?: {
-    node?: {
-      __ref?: string;
-    };
-  };
-  work?: {
-    __ref?: string;
-  };
-  details?: {
-    numPages?: number;
-    language?: {
-      name?: string;
-    };
-    format?: string;
-  };
-  imageUrl?: string;
-  name?: string;
-  webUrl?: string;
-  stats?: {
-    averageRating?: number;
-    ratingsCount?: number;
-  };
-  // Allow other properties since the graph is extensive
-  [key: string]: unknown;
-}
+export const ApolloRefSchema = z.object({
+  __ref: z.string().optional(),
+});
 
-export interface GoodreadsApolloState {
-  [key: string]: ApolloNode;
-}
+export const ApolloNodeSchema = z
+  .object({
+    __ref: z.string().optional(),
+    legacyId: z.string().optional(),
+    title: z.string().optional(),
+    titleComplete: z.string().optional(),
+    description: z.string().optional(),
+    primaryContributorEdge: z
+      .object({
+        node: ApolloRefSchema.optional(),
+      })
+      .optional(),
+    work: ApolloRefSchema.optional(),
+    details: z
+      .object({
+        numPages: z.number().optional(),
+        language: z.object({ name: z.string().optional() }).optional(),
+        format: z.string().optional(),
+      })
+      .optional(),
+    imageUrl: z.string().optional(),
+    name: z.string().optional(),
+    webUrl: z.string().optional(),
+    stats: z
+      .object({
+        averageRating: z.number().optional(),
+        ratingsCount: z.number().optional(),
+      })
+      .optional(),
+  })
+  .passthrough();
 
-export interface GoodreadsPageProps {
-  apolloState: GoodreadsApolloState;
-}
+export const GoodreadsApolloStateSchema = z.record(z.string(), ApolloNodeSchema);
 
-export interface GoodreadsProps {
-  pageProps: GoodreadsPageProps;
-}
+export const GoodreadsNextDataSchema = z.object({
+  props: z.object({
+    pageProps: z.object({
+      apolloState: GoodreadsApolloStateSchema,
+    }),
+  }),
+});
 
-export interface GoodreadsNextData {
-  props: GoodreadsProps;
-}
+export type ApolloNode = z.infer<typeof ApolloNodeSchema>;
+export type GoodreadsApolloState = z.infer<typeof GoodreadsApolloStateSchema>;
+export type GoodreadsNextData = z.infer<typeof GoodreadsNextDataSchema>;

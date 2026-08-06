@@ -17,12 +17,14 @@
     "lint:fix": "biome lint --unsafe --write .",
     "format": "biome format --write .",
     "check": "biome check --write .",
-    "test": "bun test"
+    "test": "bun test",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.13",
     "@types/bun": "^1.3.13",
     "@types/inquirer": "^9.0.9",
+    "husky": "^9.1.7",
     "inquirer": "^13.3.2"
   },
   "peerDependencies": {
@@ -31,6 +33,7 @@
   "dependencies": {
     "cac": "^7.0.0",
     "linkedom": "^0.18.12",
-    "puppeteer": "^24.40.0"
+    "puppeteer": "^24.40.0",
+    "zod": "^4.4.3"
   }
 }

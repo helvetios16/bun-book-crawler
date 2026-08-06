@@ -5,7 +5,7 @@ Este documento detalla las posibles evoluciones técnicas y funcionales para el 
 ## 1. Refactorización Arquitectónica
 *   [x] **Separación de Concernimientos:** Mover la lógica de negocio de `pipeline.ts` a un `PipelineService` dedicado en `src/services/`.
 *   [x] **Modularización de Servicios:** Dividir `GoodreadsService` en servicios especializados por dominio (`BookService`, `EditionService`, `BlogService`).
-*   [ ] **Validación Robusta:** Implementar **Zod** para validar las estructuras de datos extraídas de Goodreads (`__NEXT_DATA__`), asegurando integridad ante cambios en la plataforma.
+*   [x] **Validación Robusta:** Implementar **Zod** para validar las estructuras de datos extraídas de Goodreads (`__NEXT_DATA__`), asegurando integridad ante cambios en la plataforma.
 
 ## 2. Optimizaciones de Rendimiento
 *   [ ] **Concurrency Adaptativa:** Implementar un sistema de throttling inteligente que ajuste la concurrencia de `pMap` basándose en la tasa de éxito de las peticiones (detección de 429).
