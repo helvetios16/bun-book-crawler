@@ -114,6 +114,24 @@ Abre `set-cover.html` en el navegador para visualizar los resultados de forma in
 
 ---
 
+### `workflow` — Flujo por un solo blog (legacy)
+
+Ejecuta el flujo Blog → Libros → Ediciones para un único blog y guarda un reporte por blog (sin reporte combinado). Es el antecesor del comando `run`.
+
+```bash
+bun run src/cli.ts workflow <blogId> [opciones]
+```
+
+| Flag | Default | Descripcion |
+|---|---|---|
+| `--language=<code>` | `spa` | Codigo de idioma |
+| `--format=<fmt>` | `ebook,Kindle Edition` | Formatos separados por coma (`hardcover`, `paperback`, `ebook`, `Kindle Edition`, `audiobook`) |
+| `--sort=<order>` | `num_ratings` | Orden de las ediciones |
+
+El reporte se guarda como `.reports/report-<blogId>-<language>.json`.
+
+---
+
 ### `cache:clear` — Limpiar cache
 
 ```bash
@@ -178,8 +196,17 @@ Si necesitas ejecutar pasos por separado sin la CLI:
 
 | Script | Descripcion |
 |---|---|
-| `bun run scripts/cli/workflow-blog-to-editions.ts --blogId=<id>` | Scrapea un solo blog con sus ediciones (legacy) |
+| `bun run scripts/cli/pipeline.ts` | Pipeline completo Blog → Libros → Ediciones (backend del comando `run`) |
+| `bun run scripts/cli/report-books-relations.ts` | Reporte de relaciones desde la DB (comando `report`) |
+| `bun run scripts/cli/set-cover-books.ts` | Optimizacion de lectura (comando `set-cover`) |
+| `bun run scripts/cli/workflow-blog-to-editions.ts --blogId=<id>` | Un solo blog con sus ediciones (legacy) |
+| `bun run scripts/cli/create-session.ts` | Genera y guarda cookies de sesion manualmente |
+| `bun run scripts/cache/clear.ts` | Borra el directorio `./cache` |
+| `bun run scripts/cache/clean.ts` | Limpieza puntual del cache |
 | `bun run scripts/db/export.ts --format=csv` | Exporta libros a CSV/JSON |
+| `bun run scripts/db/query.ts` / `sql.ts` | Consultas SQL interactivas sobre `library.sqlite` |
+| `bun run scripts/db/reset.ts` / `delete-book.ts` / `delete-blog.ts` | Borrado interactivo de datos |
+| `bun run scripts/debug/*.ts` | Scripts one-off para depurar parsers y fetchers |
 
 ## Tests
 
