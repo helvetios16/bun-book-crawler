@@ -9,6 +9,7 @@ import {
   SESSION_TTL_MINUTES,
   WAF_CHALLENGE_TIMEOUT_MS,
 } from "../config/constants";
+import { AdaptiveConcurrencyController } from "../core/adaptive-concurrency";
 import type { BrowserClient } from "../core/browser-client";
 import { CacheManager } from "../core/cache-manager";
 import { DatabaseService } from "../core/database";
@@ -31,6 +32,8 @@ export abstract class BaseScraperService {
   protected readonly cache = new CacheManager();
   protected readonly db = new DatabaseService();
   protected readonly rateLimiter = new RateLimiter();
+  /** Shared with pMap-driven work (e.g. edition pagination) so it backs off on 429s. */
+  protected readonly concurrency = new AdaptiveConcurrencyController();
 
   /** In-flight session initialization, shared so concurrent fetches log in only once. */
   private sessionInitPromise: Promise<void> | null = null;
@@ -177,11 +180,16 @@ export abstract class BaseScraperService {
           lastModified: metadata.lastModified,
         });
 
+        if (condResponse?.status === 429) {
+          this.concurrency.reportThrottled();
+        }
+
         if (condResponse?.notModified) {
           const cached =
             (await this.cache.get(url, ".json")) || (await this.cache.get(url, ".html"));
           if (cached && (!validate || validate(cached))) {
             this.stats.notModified++;
+            this.concurrency.reportSuccess();
             this.db.refreshHttpMetadata(urlHash);
             return { content: cached, method: "not-modified" };
           }
@@ -193,14 +201,22 @@ export abstract class BaseScraperService {
           (!validate || validate(condResponse.content))
         ) {
           this.stats.httpSuccess++;
+          this.concurrency.reportSuccess();
           this.db.saveHttpMetadata(urlHash, url, condResponse.etag, condResponse.lastModified);
           return { content: condResponse.content, method: "http" };
         }
       }
 
-      const content = await this.http?.get(url);
+      const content = await this.http?.get(url, undefined, {
+        onRetryableStatus: (status) => {
+          if (status === 429) {
+            this.concurrency.reportThrottled();
+          }
+        },
+      });
       if (content && !this.http?.isBlocked(content) && (!validate || validate(content))) {
         this.stats.httpSuccess++;
+        this.concurrency.reportSuccess();
         this.saveMetadataFromUrl(url);
         return { content, method: "http" };
       }
@@ -210,6 +226,7 @@ export abstract class BaseScraperService {
 
     this.stats.browserFallback++;
     const content = await this.fetchViaBrowserWithRetry(url, validate);
+    this.concurrency.reportSuccess();
     return { content, method: "browser" };
   }
 
@@ -311,6 +328,9 @@ export abstract class BaseScraperService {
       return;
     }
     if (status === 403 || status === 429) {
+      if (status === 429) {
+        this.concurrency.reportThrottled();
+      }
       throw new Error(`Access denied or rate limited (Status: ${status}).`);
     }
 

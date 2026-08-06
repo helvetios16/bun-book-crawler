@@ -37,6 +37,14 @@ interface RequestOptions {
 }
 
 /**
+ * Hooks for observing retry-worthy responses without changing retry behavior itself.
+ * Lets callers (e.g. an adaptive concurrency controller) react to rate limiting.
+ */
+export interface RequestHooks {
+  onRetryableStatus?: (status: number) => void;
+}
+
+/**
  * Conditional headers sent to check if a resource has been modified.
  */
 export interface ConditionalHeaders {
@@ -94,7 +102,7 @@ export class HttpClient {
    * @param options - Optional request configuration.
    * @returns The response body as a string.
    */
-  public async get(url: string, options?: RequestOptions): Promise<string> {
+  public async get(url: string, options?: RequestOptions, hooks?: RequestHooks): Promise<string> {
     const headers = { ...this.defaultHeaders, ...options?.headers };
     let lastError: Error | null = null;
 
@@ -111,6 +119,7 @@ export class HttpClient {
             attempt < MAX_RETRIES &&
             RETRYABLE_STATUS_CODES.includes(status as 429 | 500 | 502 | 503 | 504)
           ) {
+            hooks?.onRetryableStatus?.(status);
             const retryAfter = response.headers.get("Retry-After");
             const backoff = retryAfter
               ? parseInt(retryAfter, 10) * 1000

@@ -179,7 +179,7 @@ export class EditionService extends BaseScraperService {
           const { content } = await this.getPageContent(pageUrl);
           return { pageUrl, editions: parseEditionsList(content) };
         },
-        3,
+        this.concurrency,
       );
 
       for (const result of results) {

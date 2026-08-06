@@ -111,6 +111,47 @@ describe("HttpClient - conditionalGet()", () => {
   });
 });
 
+describe("HttpClient - get() retry hook", () => {
+  test("calls onRetryableStatus and retries when the server returns 429", async () => {
+    const originalFetch = globalThis.fetch;
+    let callCount = 0;
+
+    globalThis.fetch = (async () => {
+      callCount++;
+      if (callCount === 1) {
+        return {
+          ok: false,
+          status: 429,
+          statusText: "Too Many Requests",
+          // Retry-After: 0 keeps the test fast instead of waiting out real backoff.
+          headers: new Headers({ "Retry-After": "0" }),
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        headers: new Headers(),
+        text: async () => "<html>ok</html>",
+      };
+    }) as unknown as typeof fetch;
+
+    try {
+      const client = new HttpClient();
+      const statuses: number[] = [];
+      const content = await client.get("https://example.test/page", undefined, {
+        onRetryableStatus: (status) => statuses.push(status),
+      });
+
+      expect(content).toBe("<html>ok</html>");
+      expect(statuses).toEqual([429]);
+      expect(callCount).toBe(2);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
 describe("HttpClient - constructor", () => {
   test("creates instance without cookies", () => {
     const client = new HttpClient();

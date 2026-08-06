@@ -8,7 +8,7 @@ Este documento detalla las posibles evoluciones técnicas y funcionales para el 
 *   [x] **Validación Robusta:** Implementar **Zod** para validar las estructuras de datos extraídas de Goodreads (`__NEXT_DATA__`), asegurando integridad ante cambios en la plataforma.
 
 ## 2. Optimizaciones de Rendimiento
-*   [ ] **Concurrency Adaptativa:** Implementar un sistema de throttling inteligente que ajuste la concurrencia de `pMap` basándose en la tasa de éxito de las peticiones (detección de 429).
+*   [x] **Concurrency Adaptativa:** Implementar un sistema de throttling inteligente que ajuste la concurrencia de `pMap` basándose en la tasa de éxito de las peticiones (detección de 429).
 *   [ ] **Pool de Navegadores:** Gestionar un pool de páginas de Puppeteer para reducir el overhead de apertura/cierre del navegador en procesos largos.
 *   [ ] **Mantenimiento de DB:** Añadir comandos para optimizar la base de datos SQLite (`VACUUM`, `ANALYZE`) y asegurar índices eficientes para consultas de relaciones complejas.
 

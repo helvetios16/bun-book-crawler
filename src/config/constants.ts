@@ -89,3 +89,17 @@ export const RETRY_BACKOFF_MULTIPLIER = 2;
 
 /** HTTP status codes that should trigger a retry */
 export const RETRYABLE_STATUS_CODES = [429, 500, 502, 503, 504] as const;
+
+// --- Adaptive Concurrency Configuration ---
+
+/** Starting/ceiling concurrency for pMap-driven work (e.g. edition pagination) */
+export const CONCURRENCY_MAX = 3;
+
+/** Floor the adaptive controller will never throttle below, even under sustained 429s */
+export const CONCURRENCY_MIN = 1;
+
+/** Consecutive successful requests required before easing the limit back up by one */
+export const CONCURRENCY_SUCCESS_THRESHOLD = 5;
+
+/** Poll interval (ms) pMap workers use while waiting for a free adaptive concurrency slot */
+export const CONCURRENCY_POLL_INTERVAL_MS = 200;
