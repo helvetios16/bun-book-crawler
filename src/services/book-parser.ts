@@ -61,14 +61,14 @@ export function parseBookData(jsonData: unknown): Book | null {
     : undefined;
 
   return {
-    id: data.legacyId ?? "", // Ensure string, though optional in interface, Book expects string
-    legacyId: workData?.legacyId ? Number(workData.legacyId) : undefined,
+    id: data.legacyId !== undefined ? String(data.legacyId) : "", // legacyId is string on some nodes, number on others
+    legacyId: workData?.legacyId !== undefined ? Number(workData.legacyId) : undefined,
     averageRating: workData?.stats?.averageRating,
     title: data.title ?? "",
     titleComplete: data.titleComplete,
     author: authorData?.name,
     description: description,
-    pageCount: data.details?.numPages,
+    pageCount: data.details?.numPages ?? undefined,
     language: data.details?.language?.name,
     format: data.details?.format,
     coverImage: data.imageUrl,

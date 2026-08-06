@@ -14,10 +14,14 @@ export const ApolloRefSchema = z.object({
   __ref: z.string().optional(),
 });
 
+// Goodreads serializes `legacyId` as a string on some nodes and a number on
+// others — inconsistently, even across two Book nodes in the same payload.
+const legacyIdSchema = z.union([z.string(), z.number()]).optional();
+
 export const ApolloNodeSchema = z
   .object({
     __ref: z.string().optional(),
-    legacyId: z.string().optional(),
+    legacyId: legacyIdSchema,
     title: z.string().optional(),
     titleComplete: z.string().optional(),
     description: z.string().optional(),
@@ -29,7 +33,8 @@ export const ApolloNodeSchema = z
     work: ApolloRefSchema.optional(),
     details: z
       .object({
-        numPages: z.number().optional(),
+        // null when Goodreads doesn't have a page count for the edition.
+        numPages: z.number().nullable().optional(),
         language: z.object({ name: z.string().optional() }).optional(),
         format: z.string().optional(),
       })

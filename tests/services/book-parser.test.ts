@@ -165,4 +165,67 @@ describe("parseBookData", () => {
     expect(book?.language).toBeUndefined();
     expect(book?.averageRating).toBeUndefined();
   });
+
+  // Regression: Goodreads serializes `legacyId` as a string on some nodes and a
+  // number on others (even across two Book nodes in the same real payload), and
+  // `details.numPages` can be `null` instead of omitted. An earlier version of the
+  // Zod schema only accepted string/number-non-null respectively, which rejected
+  // 100% of real book pages (every apolloState graph includes numeric-legacyId
+  // User/Contributor nodes from reviews).
+  test("accepts numeric legacyId on Book, Work, and Contributor nodes", () => {
+    const data = {
+      props: {
+        pageProps: {
+          apolloState: {
+            "Book:kca://book/amzn1.gr.book.numericIds": {
+              legacyId: 999111,
+              title: "Numeric IDs Book",
+              titleComplete: "Numeric IDs Book",
+              primaryContributorEdge: { node: { __ref: "Contributor:222" } },
+              work: { __ref: "Work:333" },
+            },
+            "Contributor:222": {
+              legacyId: 222,
+              name: "Numeric Author",
+            },
+            "Work:333": {
+              legacyId: 333,
+              stats: { averageRating: 3.9 },
+            },
+            "User:444": {
+              legacyId: 444, // reviewer node present in every real payload
+            },
+          },
+        },
+      },
+    };
+
+    const book = parseBookData(data);
+    expect(book).not.toBeNull();
+    expect(book?.id).toBe("999111");
+    expect(book?.legacyId).toBe(333);
+    expect(book?.author).toBe("Numeric Author");
+    expect(book?.averageRating).toBe(3.9);
+  });
+
+  test("accepts null numPages", () => {
+    const data = {
+      props: {
+        pageProps: {
+          apolloState: {
+            "Book:kca://book/amzn1.gr.book.nullPages": {
+              legacyId: "777",
+              title: "No Page Count",
+              titleComplete: "No Page Count",
+              details: { numPages: null },
+            },
+          },
+        },
+      },
+    };
+
+    const book = parseBookData(data);
+    expect(book).not.toBeNull();
+    expect(book?.pageCount).toBeUndefined();
+  });
 });
