@@ -1,10 +1,12 @@
 #!/usr/bin/env bun
+import { mkdirSync } from "node:fs";
+import path from "node:path";
 import { BrowserClient } from "../../src/core/browser-client";
 import { DatabaseService } from "../../src/core/database";
 import { GoodreadsService } from "../../src/services/goodreads-service";
 import { type PipelineError, PipelineService } from "../../src/services/pipeline-service";
 import { GridReporter } from "../../src/utils/grid-reporter";
-import { ansi } from "../../src/utils/logger";
+import { ansi, createErrorFileSink, setErrorFileSink } from "../../src/utils/logger";
 import { PlainReporter } from "../../src/utils/plain-reporter";
 import type { PipelineReporter } from "../../src/utils/reporter";
 
@@ -121,6 +123,12 @@ async function main(): Promise<void> {
   const useGrid = !plain && process.stdout.isTTY && process.env.CI !== "true";
   const reporter: PipelineReporter = useGrid ? new GridReporter() : new PlainReporter();
 
+  const reportsDir = path.resolve(process.cwd(), ".reports");
+  mkdirSync(reportsDir, { recursive: true });
+  const runTimestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const errorLogPath = path.resolve(reportsDir, `error-log-${runTimestamp}.ndjson`);
+  setErrorFileSink(createErrorFileSink(errorLogPath));
+
   reporter.onPipelineStart(blogIds, { language, formats, checkOnly });
 
   const browserClient = new BrowserClient();
@@ -166,13 +174,7 @@ async function main(): Promise<void> {
       console.log(`\n${c.heading("=== Phase 2: Generating combined report ===")}`);
       const report = pipelineService.generateReport(blogIds, language);
 
-      const { mkdirSync } = await import("node:fs");
-      const path = await import("node:path");
-      const reportsDir = path.resolve(process.cwd(), ".reports");
-      mkdirSync(reportsDir, { recursive: true });
-
-      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-      const finalPath = path.resolve(reportsDir, output || `report-pipeline-${timestamp}.json`);
+      const finalPath = path.resolve(reportsDir, output || `report-pipeline-${runTimestamp}.json`);
       await Bun.write(finalPath, JSON.stringify(report, null, 2));
 
       console.log(`\n${c.heading("=== Results ===")}`);
@@ -197,20 +199,17 @@ async function main(): Promise<void> {
         );
       }
 
-      const { mkdirSync } = await import("node:fs");
-      const path = await import("node:path");
-      const reportsDir = path.resolve(process.cwd(), ".reports");
-      mkdirSync(reportsDir, { recursive: true });
-      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-      const errorsPath = path.resolve(reportsDir, `errors-${timestamp}.jsonl`);
+      const errorsPath = path.resolve(reportsDir, `errors-${runTimestamp}.jsonl`);
       await Bun.write(errorsPath, `${allErrors.map((err) => JSON.stringify(err)).join("\n")}\n`);
       console.log(`\n  ${c.gray("Detalle de errores guardado en:")} ${c.gray(errorsPath)}`);
+      console.log(`  ${c.gray("Log de errores en tiempo real:")} ${c.gray(errorLogPath)}`);
     }
   } catch (error: unknown) {
     reporter.onPipelineEnd({ errors: allErrors });
     const message = error instanceof Error ? error.message : String(error);
     console.error(`\n${c.error("Fatal error:")} ${message}`);
   } finally {
+    setErrorFileSink(null);
     dbService.close();
     await browserClient.close();
   }

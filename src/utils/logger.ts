@@ -3,6 +3,8 @@
  * @description Structured logger with levels, timestamps, and ANSI color support.
  */
 
+import { appendFileSync } from "node:fs";
+
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
 const LOG_LEVELS: Record<LogLevel, number> = {
@@ -63,8 +65,13 @@ export class Logger {
       return;
     }
 
+    const argsStr = args.length > 0 ? ` ${args.map((a) => String(a)).join(" ")}` : "";
+
+    if (level === "error" && _errorFileSink) {
+      _errorFileSink(this.prefix, message + argsStr);
+    }
+
     if (_loggerSink) {
-      const argsStr = args.length > 0 ? ` ${args.map((a) => String(a)).join(" ")}` : "";
       _loggerSink(level, this.prefix, message + argsStr);
       return;
     }
@@ -88,6 +95,26 @@ export type LoggerSink = (level: LogLevel, source: string, message: string) => v
 let _loggerSink: LoggerSink | null = null;
 export function setLoggerSink(s: LoggerSink | null): void {
   _loggerSink = s;
+}
+
+/**
+ * Sink for `error`-level logs only, independent of `setLoggerSink`: the grid UI
+ * sink redirects everything to an 8-line scrolling buffer that's lost on
+ * re-render, so this exists to persist errors to disk regardless of which
+ * display sink (if any) is active.
+ */
+export type ErrorFileSink = (source: string, message: string) => void;
+let _errorFileSink: ErrorFileSink | null = null;
+export function setErrorFileSink(s: ErrorFileSink | null): void {
+  _errorFileSink = s;
+}
+
+/** Appends one NDJSON line per error log call to `filePath`. */
+export function createErrorFileSink(filePath: string): ErrorFileSink {
+  return (source, message) => {
+    const line = JSON.stringify({ timestamp: new Date().toISOString(), source, message });
+    appendFileSync(filePath, `${line}\n`);
+  };
 }
 
 /** Shared ANSI helpers for CLI scripts — each wraps text with color + reset */
