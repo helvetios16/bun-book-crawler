@@ -181,12 +181,30 @@ async function main(): Promise<void> {
     }
 
     if (allErrors.length > 0) {
+      const byCategory = new Map<string, number>();
+      for (const err of allErrors) {
+        byCategory.set(err.category, (byCategory.get(err.category) ?? 0) + 1);
+      }
+
       console.log(`\n${c.warn(`${allErrors.length} error(s) found during process:`)}`);
+      for (const [category, count] of [...byCategory].sort((a, b) => b[1] - a[1])) {
+        console.log(`  ${c.gray(category)}: ${c.info(String(count))}`);
+      }
+      console.log("");
       for (const err of allErrors) {
         console.log(
-          `  - ${c.error(err.blogId || "General")}: ${c.info(err.title)} (${c.gray(err.id)}) -> ${c.gray(err.error)}`,
+          `  - ${c.error(err.blogId || "General")}: ${c.info(err.title)} (${c.gray(err.id)}) [${c.gray(err.category)}] -> ${c.gray(err.error)}`,
         );
       }
+
+      const { mkdirSync } = await import("node:fs");
+      const path = await import("node:path");
+      const reportsDir = path.resolve(process.cwd(), ".reports");
+      mkdirSync(reportsDir, { recursive: true });
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const errorsPath = path.resolve(reportsDir, `errors-${timestamp}.jsonl`);
+      await Bun.write(errorsPath, `${allErrors.map((err) => JSON.stringify(err)).join("\n")}\n`);
+      console.log(`\n  ${c.gray("Detalle de errores guardado en:")} ${c.gray(errorsPath)}`);
     }
   } catch (error: unknown) {
     reporter.onPipelineEnd({ errors: allErrors });

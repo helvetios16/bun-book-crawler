@@ -103,3 +103,11 @@ export const CONCURRENCY_SUCCESS_THRESHOLD = 5;
 
 /** Poll interval (ms) pMap workers use while waiting for a free adaptive concurrency slot */
 export const CONCURRENCY_POLL_INTERVAL_MS = 200;
+
+/**
+ * Books that still fail after their own internal retries (see MAX_RETRIES above)
+ * are queued and retried once more at the end of the blog. This gives a transient
+ * block (a WAF wave, a burst of 429s) time to clear instead of losing the book
+ * outright just because it was unlucky enough to run mid-block.
+ */
+export const FAILED_BOOK_RETRY_DELAY_MS = 15000;

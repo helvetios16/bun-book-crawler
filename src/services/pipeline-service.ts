@@ -1,9 +1,15 @@
+import { FAILED_BOOK_RETRY_DELAY_MS } from "../config/constants";
 import type { DatabaseService } from "../core/database";
 import type { Book, BookFilterOptions, Edition } from "../types";
+import { classifyError, type ErrorCategory } from "../utils/error-classifier";
+import { Logger } from "../utils/logger";
 import { NULL_REPORTER, type PipelineReporter } from "../utils/reporter";
+import { delay, getErrorMessage } from "../utils/util";
 import type { BlogService } from "./blog-service";
 import type { BookService } from "./book-service";
 import type { EditionService } from "./edition-service";
+
+const log = new Logger("PipelineService");
 
 export interface PipelineOptions {
   language: string;
@@ -23,7 +29,13 @@ export interface PipelineError {
   id: string;
   title: string;
   error: string;
+  category: ErrorCategory;
 }
+
+type BookOutcome =
+  | { status: "done"; book: Book }
+  | { status: "skipped"; reason: string }
+  | { status: "error"; message: string };
 
 export interface BookReport extends Book {
   editionsFound: Edition[];
@@ -50,8 +62,6 @@ export class PipelineService {
    * Ejecuta el proceso de scraping para un blog.
    */
   public async processBlog(blogId: string, options: PipelineOptions): Promise<PipelineResult> {
-    const { language, formats, sort, checkOnly = false, force = false } = options;
-
     const blogData = await this.blogService.scrapeBlog(blogId);
     if (!blogData) {
       this.reporter.onBlogTitle(blogId);
@@ -59,7 +69,14 @@ export class PipelineService {
       this.reporter.onBlogEnd({ ok: 0, skipped: 0, errors: 1 });
       return {
         books: [],
-        errors: [{ id: blogId, title: "Unknown", error: "Failed to scrape blog" }],
+        errors: [
+          {
+            id: blogId,
+            title: "Unknown",
+            error: "Failed to scrape blog",
+            category: "unknown",
+          },
+        ],
       };
     }
 
@@ -70,79 +87,128 @@ export class PipelineService {
 
     const processedBooks: Book[] = [];
     const errors: PipelineError[] = [];
+    const failedRefs: Book[] = [];
     let okCount = 0;
     let skippedCount = 0;
 
     for (const bookRef of books) {
       const bookTitle = bookRef.title || bookRef.id;
       this.reporter.onBookStart(bookRef.id, bookTitle);
+      const outcome = await this.processOneBook(bookRef, options);
 
-      try {
-        const bookDetails = await this.bookService.scrapeBook(bookRef.id);
-        if (!bookDetails) {
-          throw new Error(`Failed to get details for book ${bookRef.id}`);
-        }
-
-        if (bookDetails.legacyId) {
-          this.reporter.onBookStage(bookRef.id, "filters");
-          const filters = await this.editionService.scrapeEditionsFilters(bookDetails.legacyId);
-
-          if (filters && !force) {
-            const hasLanguage = filters.language.some((l) => l.value === language);
-            const availableFormats =
-              formats.length > 0
-                ? formats.filter((f) => filters.format.some((af) => af.value === f))
-                : [];
-
-            const canProcess = hasLanguage && (formats.length === 0 || availableFormats.length > 0);
-
-            if (!canProcess) {
-              const reason = !hasLanguage
-                ? `Language '${language}' not found`
-                : `Format(s) '${formats.join(",")}' not found`;
-              this.reporter.onBookDone(bookRef.id, "skipped", reason);
-              skippedCount++;
-              continue;
-            }
-
-            if (checkOnly) {
-              this.reporter.onBookDone(bookRef.id, "done");
-              processedBooks.push(bookDetails);
-              okCount++;
-              continue;
-            }
-          }
-
-          if (!checkOnly) {
-            this.reporter.onBookStage(bookRef.id, "editions");
-            const formatsToProcess = formats.length > 0 ? formats : [undefined];
-            for (const format of formatsToProcess) {
-              const filterOptions: BookFilterOptions = {
-                language,
-                sort,
-                format,
-              };
-              await this.editionService.scrapeFilteredEditions(bookDetails.legacyId, filterOptions);
-            }
-          }
-        }
-
-        processedBooks.push(bookDetails);
+      if (outcome.status === "done") {
+        processedBooks.push(outcome.book);
         this.reporter.onBookDone(bookRef.id, "done");
         okCount++;
-      } catch (err: unknown) {
-        const errorMessage = err instanceof Error ? err.message : String(err);
-        this.reporter.onBookDone(bookRef.id, "error", errorMessage);
+      } else if (outcome.status === "skipped") {
+        this.reporter.onBookDone(bookRef.id, "skipped", outcome.reason);
+        skippedCount++;
+      } else {
+        this.reporter.onBookDone(bookRef.id, "error", outcome.message);
         errors.push({
           id: bookRef.id,
-          title: bookRef.title || "Unknown",
-          error: errorMessage,
+          title: bookTitle,
+          error: outcome.message,
+          category: classifyError(outcome.message),
         });
+        failedRefs.push(bookRef);
+      }
+    }
+
+    if (failedRefs.length > 0) {
+      log.warn(
+        `${failedRefs.length} book(s) failed on the first pass. Retrying after ${FAILED_BOOK_RETRY_DELAY_MS / 1000}s cooldown...`,
+      );
+      await delay(FAILED_BOOK_RETRY_DELAY_MS);
+
+      for (const bookRef of failedRefs) {
+        const bookTitle = bookRef.title || bookRef.id;
+        this.reporter.onBookStart(bookRef.id, bookTitle);
+        const outcome = await this.processOneBook(bookRef, options);
+
+        // Drop the first-pass failure so counts and the final report reflect
+        // the retry's outcome instead of double-counting the book.
+        const priorIdx = errors.findIndex((e) => e.id === bookRef.id);
+        if (priorIdx !== -1) {
+          errors.splice(priorIdx, 1);
+        }
+
+        if (outcome.status === "done") {
+          processedBooks.push(outcome.book);
+          this.reporter.onBookDone(bookRef.id, "done");
+          okCount++;
+        } else if (outcome.status === "skipped") {
+          this.reporter.onBookDone(bookRef.id, "skipped", outcome.reason);
+          skippedCount++;
+        } else {
+          this.reporter.onBookDone(bookRef.id, "error", outcome.message);
+          errors.push({
+            id: bookRef.id,
+            title: bookTitle,
+            error: outcome.message,
+            category: classifyError(outcome.message),
+          });
+        }
       }
     }
 
     this.reporter.onBlogEnd({ ok: okCount, skipped: skippedCount, errors: errors.length });
     return { books: processedBooks, errors };
+  }
+
+  /**
+   * Runs the filters/editions scrape for a single book. Extracted so the
+   * first pass and the end-of-blog retry pass (see processBlog) share the
+   * exact same logic instead of drifting apart.
+   */
+  private async processOneBook(bookRef: Book, options: PipelineOptions): Promise<BookOutcome> {
+    const { language, formats, sort, checkOnly = false, force = false } = options;
+
+    try {
+      const bookDetails = await this.bookService.scrapeBook(bookRef.id);
+      if (!bookDetails) {
+        throw new Error(`Failed to get details for book ${bookRef.id}`);
+      }
+
+      if (bookDetails.legacyId) {
+        this.reporter.onBookStage(bookRef.id, "filters");
+        const filters = await this.editionService.scrapeEditionsFilters(bookDetails.legacyId);
+
+        if (filters && !force) {
+          const hasLanguage = filters.language.some((l) => l.value === language);
+          const availableFormats =
+            formats.length > 0
+              ? formats.filter((f) => filters.format.some((af) => af.value === f))
+              : [];
+
+          const canProcess = hasLanguage && (formats.length === 0 || availableFormats.length > 0);
+
+          if (!canProcess) {
+            const reason = !hasLanguage
+              ? `Language '${language}' not found`
+              : `Format(s) '${formats.join(",")}' not found`;
+            return { status: "skipped", reason };
+          }
+
+          if (checkOnly) {
+            return { status: "done", book: bookDetails };
+          }
+        }
+
+        if (!checkOnly) {
+          this.reporter.onBookStage(bookRef.id, "editions");
+          const formatsToProcess = formats.length > 0 ? formats : [undefined];
+          for (const format of formatsToProcess) {
+            const filterOptions: BookFilterOptions = { language, sort, format };
+            await this.editionService.scrapeFilteredEditions(bookDetails.legacyId, filterOptions);
+          }
+        }
+      }
+
+      return { status: "done", book: bookDetails };
+    } catch (err: unknown) {
+      return { status: "error", message: getErrorMessage(err) };
+    }
   }
 
   /**

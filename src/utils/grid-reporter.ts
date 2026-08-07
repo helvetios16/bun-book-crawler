@@ -1,3 +1,4 @@
+import { classifyError } from "./error-classifier";
 import { ansi, type LogLevel, setLoggerSink } from "./logger";
 import type { BookRefLite, BookStage, BookState, PipelineReporter } from "./reporter";
 
@@ -5,6 +6,14 @@ interface BookEntry {
   id: string;
   title: string;
   state: BookState;
+}
+
+interface ErrorRecord {
+  blogId: string;
+  bookId: string;
+  title: string;
+  message: string;
+  category: string;
 }
 
 const STAGE_LABELS: Record<BookStage, string> = {
@@ -77,6 +86,10 @@ export class GridReporter implements PipelineReporter {
   private skippedCount = 0;
   private errorCount = 0;
 
+  /** Errors still outstanding across the whole run (all blogs), keyed so a retry that
+   * later succeeds clears its earlier entry instead of leaving a stale failure behind. */
+  private readonly errorsMap = new Map<string, ErrorRecord>();
+
   private bookStartTimes = new Map<string, number>();
   private durations: number[] = [];
 
@@ -111,7 +124,9 @@ export class GridReporter implements PipelineReporter {
       const remaining = this.QUIT_PRESSES_REQUIRED - this.quitPresses;
       if (remaining <= 0) {
         this.pushLog("warn", "bukcraw", "Saliendo...");
+        this.render();
         this.cleanup();
+        this.printErrorSummary();
         process.exit(130);
         return;
       }
@@ -210,7 +225,7 @@ export class GridReporter implements PipelineReporter {
   onBookDone(
     bookId: string,
     state: Exclude<BookState, "pending" | "in-progress">,
-    _message?: string,
+    message?: string,
   ): void {
     const start = this.bookStartTimes.get(bookId);
     if (start) {
@@ -220,17 +235,44 @@ export class GridReporter implements PipelineReporter {
         this.durations.shift();
       }
     }
+
     const idx = this.bookIndex.get(bookId);
+    const title = idx !== undefined ? this.books[idx].title : bookId;
+
+    // A retried book re-enters here with a state it already had a terminal
+    // count for (e.g. error -> done); back that out first so totals stay
+    // accurate instead of double-counting the earlier attempt.
     if (idx !== undefined) {
+      const prevState = this.books[idx].state;
+      if (prevState === "done") {
+        this.doneCount--;
+      } else if (prevState === "skipped") {
+        this.skippedCount--;
+      } else if (prevState === "error") {
+        this.errorCount--;
+      }
       this.books[idx].state = state;
     }
 
+    const errorKey = `${this.blogId}:${bookId}`;
     if (state === "done") {
       this.doneCount++;
+      this.errorsMap.delete(errorKey);
     } else if (state === "skipped") {
       this.skippedCount++;
+      this.errorsMap.delete(errorKey);
     } else if (state === "error") {
       this.errorCount++;
+      if (message) {
+        this.pushLog("error", "Pipeline", `${title}: ${message}`);
+        this.errorsMap.set(errorKey, {
+          blogId: this.blogId,
+          bookId,
+          title,
+          message,
+          category: classifyError(message),
+        });
+      }
     }
 
     if (this.currentBookId === bookId) {
@@ -279,6 +321,33 @@ export class GridReporter implements PipelineReporter {
       this.rawModeEnabled = false;
     }
     process.stdout.write("\x1b[?25h");
+  }
+
+  /** Prints every error still outstanding when the user bails out early via q×3. */
+  private printErrorSummary(): void {
+    const errors = [...this.errorsMap.values()];
+    if (errors.length === 0) {
+      process.stdout.write(`${ansi.gray("No había errores pendientes al momento de salir.")}\n`);
+      return;
+    }
+
+    const byCategory = new Map<string, number>();
+    for (const err of errors) {
+      byCategory.set(err.category, (byCategory.get(err.category) ?? 0) + 1);
+    }
+
+    process.stdout.write(
+      `\n${ansi.warn(`${errors.length} error(es) pendientes al momento de salir:`)}\n`,
+    );
+    for (const [category, count] of [...byCategory].sort((a, b) => b[1] - a[1])) {
+      process.stdout.write(`  ${ansi.gray(category)}: ${ansi.info(String(count))}\n`);
+    }
+    process.stdout.write("\n");
+    for (const err of errors) {
+      process.stdout.write(
+        `  - ${ansi.error(err.blogId || "General")}: ${ansi.info(err.title)} (${ansi.gray(err.bookId)}) [${ansi.gray(err.category)}] -> ${ansi.gray(err.message)}\n`,
+      );
+    }
   }
 
   private pushLog(level: LogLevel, source: string, message: string): void {

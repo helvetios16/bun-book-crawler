@@ -191,8 +191,17 @@ export class EditionService extends BaseScraperService {
   }
 
   private async getPageContent(url: string): Promise<{ content: string; fromCache: boolean }> {
+    // A filter combination with zero matching editions is a legitimate 200 page
+    // ("There are no editions with format X."), not a blocked/broken fetch — it
+    // just has no .elementList/.bookTitle to show. "workEditions" is the page's
+    // container class and is present either way, so use it as the structural
+    // signal that we actually got the real editions page.
     const validate = (html: string) => {
-      return html.includes("elementList") || html.includes('class="bookTitle"');
+      return (
+        html.includes("elementList") ||
+        html.includes('class="bookTitle"') ||
+        html.includes("workEditions")
+      );
     };
 
     return this.cache.getOrFetch(
