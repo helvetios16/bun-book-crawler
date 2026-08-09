@@ -71,7 +71,46 @@ cli
     runScript("scripts/cli/pipeline.ts", args);
   });
 
-// 2. Check (Fast verification)
+// 2. Rerun (pick previously scraped blogs and re-run the pipeline on them)
+cli
+  .command("rerun", "Selecciona blogs ya guardados en la DB y vuelve a correr el pipeline")
+  .option("--language <lang>", "Código de idioma", { default: "spa" })
+  .option("--format <fmt>", "Formato (ebook, hardcover, Kindle Edition, etc.)", {
+    default: "ebook,Kindle Edition",
+  })
+  .option("--sort <order>", "Orden de las ediciones (num_ratings, avg_rating, publish_date)")
+  .option("--report", "Generar reporte final (desactivado por defecto)")
+  .option("--output <path>", "Ruta del archivo de salida")
+  .option("--force", "Forzar scraping completo ignorando validaciones de formato")
+  .option("--plain", "Desactivar la grilla animada y usar logs de texto plano")
+  .action((options) => {
+    const args: string[] = ["--interactive"];
+    if (options.language) {
+      args.push(`--language=${options.language}`);
+    }
+    if (options.format) {
+      args.push(`--format=${options.format}`);
+    }
+    if (options.sort) {
+      args.push(`--sort=${options.sort}`);
+    }
+    if (options.force) {
+      args.push("--force");
+    }
+    if (options.plain) {
+      args.push("--plain");
+    }
+    if (options.report) {
+      args.push("--report");
+    }
+    if (options.output) {
+      args.push(`--output=${options.output}`);
+    }
+
+    runScript("scripts/cli/pipeline.ts", args);
+  });
+
+// 3. Check (Fast verification)
 cli
   .command("check [...blogs]", "Verifica disponibilidad de formatos sin scrapear ediciones")
   .option("--language <lang>", "Código de idioma", { default: "spa" })
@@ -97,7 +136,7 @@ cli
     runScript("scripts/cli/pipeline.ts", args);
   });
 
-// 3. Report (Database relations)
+// 4. Report (Database relations)
 cli
   .command("report", "Genera el reporte de relaciones desde la base de datos")
   .option("--language <lang>", "Filtrar ediciones por idioma")

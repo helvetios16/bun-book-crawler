@@ -15,7 +15,6 @@ Este documento detalla las posibles evoluciones técnicas y funcionales para el 
 ## 3. Nuevas Funcionalidades (Objetivos)
 *   [ ] **Interfaz Web Local:** Crear un comando `bukcraw ui` para levantar un servidor ligero que permita explorar la base de datos y los reportes de forma visual.
 *   [ ] **Sistema de Watch/Monitoreo:** Permitir el seguimiento de blogs específicos para automatizar el scraping cuando se detecten nuevas publicaciones.
-*   [ ] **Formatos de Exportación:** Soporte para exportar reportes a **CSV** y **Excel** para facilitar el análisis externo.
 *   [ ] **Fuentes de Respaldo:** Integración con **OpenLibrary** o **Google Books API** para completar metadatos de ediciones no encontradas en Goodreads.
 
 ## 4. Estabilidad y Experiencia de Usuario (DX)

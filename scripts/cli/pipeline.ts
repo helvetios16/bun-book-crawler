@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { mkdirSync } from "node:fs";
 import path from "node:path";
+import inquirer from "inquirer";
 import { BrowserClient } from "../../src/core/browser-client";
 import { DatabaseService } from "../../src/core/database";
 import { GoodreadsService } from "../../src/services/goodreads-service";
@@ -24,6 +25,7 @@ interface PipelineArgs {
   checkOnly: boolean;
   force: boolean;
   plain: boolean;
+  interactive: boolean;
 }
 
 // ── Args parsing ──
@@ -40,6 +42,7 @@ function parseArgs(): PipelineArgs | null {
     checkOnly: false,
     force: false,
     plain: false,
+    interactive: false,
   };
 
   for (const arg of args) {
@@ -54,6 +57,8 @@ function parseArgs(): PipelineArgs | null {
       params.force = true;
     } else if (arg === "--plain") {
       params.plain = true;
+    } else if (arg === "--interactive") {
+      params.interactive = true;
     } else if (arg.startsWith("--blogs=")) {
       const value = arg.split("=").slice(1).join("=");
       params.blogIds = value
@@ -90,6 +95,7 @@ a combined report showing which books appear across multiple blogs.
 ${c.heading("Usage:")}
   bukcraw run [options] [blogId1 blogId2 ...]
   bukcraw check [options] [blogId1 blogId2 ...]
+  bukcraw rerun [options]
 
 ${c.heading("Options:")}
   --blogs=<id1,id2,...>  Blog IDs, comma-separated
@@ -100,9 +106,66 @@ ${c.heading("Options:")}
   --report               Generate final report
   --force                Force full scrape (ignore format checks)
   --plain                Disable grid UI, use plain log output
+  --interactive          Pick blogs already in the DB via checkbox prompt
   --output=<path>        Output filename (default: auto-generated)
   --help, -h             Show this help
 `);
+}
+
+// ── Interactive blog picker (rerun) ──
+
+async function pickBlogsInteractively(): Promise<string[]> {
+  const dbService = new DatabaseService();
+
+  try {
+    const allBlogs = dbService.getAllBlogs();
+
+    if (allBlogs.length === 0) {
+      console.log(c.warn("No blogs in database."));
+      return [];
+    }
+
+    // @ts-expect-error - createdAt está en el objeto retornado por getAllBlogs
+    allBlogs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    const handleVimNavigation = (_ch: string, key: { name?: string }) => {
+      if (key?.name === "j") {
+        process.stdin.emit("keypress", null, { name: "down" });
+      } else if (key?.name === "k") {
+        process.stdin.emit("keypress", null, { name: "up" });
+      } else if (key?.name === "q") {
+        console.log(c.warn("\nAborted by user (q)."));
+        process.exit(0);
+      }
+    };
+    process.stdin.on("keypress", handleVimNavigation);
+
+    const { selectedIds } = await inquirer.prompt([
+      {
+        type: "checkbox",
+        name: "selectedIds",
+        message: "Select blogs to re-run:",
+        choices: allBlogs.map((blog) => {
+          // @ts-expect-error
+          const dateStr = blog.createdAt
+            ? new Date(blog.createdAt).toLocaleDateString()
+            : "unknown";
+          return {
+            name: `${c.info(dateStr)} | ${blog.title}  ${c.gray(blog.id)}`,
+            value: blog.id,
+          };
+        }),
+        pageSize: 20,
+        loop: false,
+      },
+    ]);
+
+    process.stdin.removeListener("keypress", handleVimNavigation);
+
+    return selectedIds as string[];
+  } finally {
+    dbService.close();
+  }
 }
 
 // ── Main ──
@@ -113,7 +176,16 @@ async function main(): Promise<void> {
     return;
   }
 
-  const { blogIds, language, formats, sort, output, enableReport, checkOnly, force, plain } = args;
+  let { blogIds, language, formats, sort, output, enableReport, checkOnly, force, plain } = args;
+  const { interactive } = args;
+
+  if (interactive && blogIds.length === 0) {
+    blogIds = await pickBlogsInteractively();
+    if (blogIds.length === 0) {
+      console.log(c.warn("No blogs selected. Aborting."));
+      return;
+    }
+  }
 
   if (blogIds.length === 0) {
     console.error(c.error("Error: At least one blog ID is required."));
